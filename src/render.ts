@@ -398,6 +398,16 @@ export function createRenderer(
       target.x = target.y = 0
       target.k = fitK(m)
     },
+    restyle(style: Map<string, { r: number; labeled: boolean }>) {
+      // sizes lerp toward the new radii in step(); no relayout needed
+      for (const n of nodes) {
+        const s = style.get(n.id)
+        if (s) {
+          n.r = s.r
+          n.labeled = s.labeled
+        }
+      }
+    },
     highlight(id: string | null) {
       external = id ? (byId.get(id) ?? null) : null
     },

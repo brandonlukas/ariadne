@@ -1,5 +1,5 @@
 import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type Work } from './api.ts'
-import { computeMetrics, type Metrics } from './metrics.ts'
+import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -40,6 +40,8 @@ function saveStore() {
 
 let seeds: Work[] = []
 let sortBy: 'score' | 'year' | 'momentum' = 'score'
+let preset: keyof typeof PRESETS = 'canon'
+let bridgesOnly = false
 let needle = ''
 let flags: Record<string, 'star' | 'hide'> = {}
 let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
@@ -192,15 +194,9 @@ $<HTMLButtonElement>('demo').onclick = async (e) => {
 
 function present() {
   if (!corpus) return
-  metrics = computeMetrics(corpus.works, corpus.edges)
+  metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset])
   byId = new Map(corpus.works.map((w, i) => [w.id, i]))
-  const seedIdx = new Set(corpus.works.flatMap((w, i) => (w.isSeed ? [i] : [])))
-  const counted = corpus.works.map(() => new Set<number>())
-  for (const [s, t] of corpus.edges) {
-    if (seedIdx.has(t)) counted[s].add(t)
-    if (seedIdx.has(s)) counted[t].add(s)
-  }
-  seedLinks = counted.map((c) => c.size)
+  seedLinks = metrics.map((m) => m.seedLinks)
   computeOrder()
   $<HTMLInputElement>('find').value = ''
   needle = ''
@@ -212,6 +208,10 @@ function present() {
   renderFacts()
   $('tabs').hidden = false
   $('list-tools').hidden = false
+  $('preset').hidden = false
+  $('bridges').hidden = corpus.works.filter((w) => w.isSeed).length < 2
+  bridgesOnly = false
+  $('bridges').classList.remove('on')
   setTab('papers')
   lens = null
   applyBrush(null)
@@ -256,6 +256,33 @@ document.querySelectorAll<HTMLButtonElement>('#sort button').forEach((b) => {
 
 $<HTMLInputElement>('find').oninput = (e) => {
   needle = (e.target as HTMLInputElement).value.trim().toLowerCase()
+  applyFilter()
+}
+
+document.querySelectorAll<HTMLButtonElement>('#preset button').forEach((b) => {
+  b.onclick = () => {
+    preset = b.dataset.p as typeof preset
+    document.querySelectorAll('#preset button').forEach((x) => x.classList.toggle('on', x === b))
+    if (!corpus) return
+    metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset])
+    seedLinks = metrics.map((m) => m.seedLinks)
+    computeOrder()
+    const labeled = new Set(order.slice(0, 14))
+    renderer.restyle(
+      new Map(
+        corpus.works.map((w, i) => [
+          w.id,
+          { r: 3.5 + metrics[i].score * 14, labeled: labeled.has(i) || w.isSeed },
+        ]),
+      ),
+    )
+    refreshViews()
+  }
+})
+
+$<HTMLButtonElement>('bridges').onclick = (e) => {
+  bridgesOnly = !bridgesOnly
+  ;(e.target as HTMLElement).classList.toggle('on', bridgesOnly)
   applyFilter()
 }
 
@@ -319,6 +346,7 @@ let lens: { kind: 'venue' | 'author'; name: string } | null = null
 
 function matches(w: Work): boolean {
   if (flags[w.id] === 'hide') return false
+  if (bridgesOnly && !w.isSeed && (seedLinks[byId.get(w.id)!] ?? 0) < 2) return false
   if (brushRange && (w.year < brushRange[0] || w.year > brushRange[1])) return false
   if (needle && !`${w.title} ${w.authors.join(' ')} ${w.venue ?? ''}`.toLowerCase().includes(needle)) return false
   if (lens) return lens.kind === 'venue' ? w.venue === lens.name : w.authors.includes(lens.name)
@@ -327,7 +355,8 @@ function matches(w: Work): boolean {
 
 function applyFilter() {
   if (!corpus) return
-  const filtering = !!(brushRange || lens || needle) || corpus.works.some((w) => flags[w.id] === 'hide')
+  const filtering =
+    !!(brushRange || lens || needle || bridgesOnly) || corpus.works.some((w) => flags[w.id] === 'hide')
   const vis = filtering ? new Set(corpus.works.filter(matches).map((w) => w.id)) : null
   renderer.setFilter(vis)
   for (const bar of yearsEl.children) {
@@ -499,6 +528,7 @@ function renderList() {
       const body = el('div', 'body')
       const meta = el('div', 'meta', `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) meta.append(el('span', 'seed-mark', ' — seed'))
+      if (!w.isSeed && seedLinks[i] >= 2) meta.append(el('span', 'seed-mark', ` — bridges ${seedLinks[i]} seeds`))
       if (flags[w.id] === 'star') meta.append(el('span', 'seed-mark', ' ★'))
       body.append(el('div', 'title', w.title), meta)
       if (w.venue) {
@@ -660,6 +690,7 @@ function renderGallery() {
       }
       const m = el('div', 'm', `${rankOf.get(i)} · ${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) m.append(el('span', 'seed', ' — seed'))
+      if (!w.isSeed && seedLinks[i] >= 2) m.append(el('span', 'seed', ` — bridges ${seedLinks[i]}`))
       if (flags[w.id] === 'star') m.append(el('span', 'seed', ' ★'))
       card.append(fig, el('div', 't', w.title), m)
       if (w.venue) {

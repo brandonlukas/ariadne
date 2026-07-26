@@ -1,6 +1,16 @@
 export interface Metrics {
   score: number
+  seedLinks: number // distinct seeds this paper directly cites or is cited by
   parts: { foundational: number; bridge: number; momentum: number; relevance: number }
+}
+
+export type Weights = { f: number; b: number; m: number; r: number }
+// intent presets: canon = committee-exam classics, catchup = where the field
+// went since the seeds, pulse = the newest work closest to the seeds
+export const PRESETS: Record<'canon' | 'catchup' | 'pulse', Weights> = {
+  canon: { f: 0.35, b: 0.25, m: 0.2, r: 0.2 },
+  catchup: { f: 0.1, b: 0.15, m: 0.45, r: 0.3 },
+  pulse: { f: 0.05, b: 0.05, m: 0.4, r: 0.5 },
 }
 
 export function pagerank(n: number, edges: [number, number][], d = 0.85, iters = 50): number[] {
@@ -94,26 +104,39 @@ const norm = (xs: number[]) => {
 export function computeMetrics(
   works: { recentCites: number; citedBy: number; isSeed: boolean }[],
   edges: [number, number][],
+  w: Weights = PRESETS.canon,
 ): Metrics[] {
   const n = works.length
   const pr = norm(pagerank(n, edges))
   const bt = norm(betweenness(n, edges))
-  const vel = norm(works.map((w) => Math.log1p(w.recentCites)))
+  const vel = norm(works.map((wk) => Math.log1p(wk.recentCites)))
   // fraction of lifetime citations from the last 3 years — high for new-and-hot
   // papers at any absolute count, near zero for settled classics
-  const rise = works.map((w) => Math.min(1, w.recentCites / Math.max(1, w.citedBy)))
-  const dist = seedDistance(n, edges, works.flatMap((w, i) => (w.isSeed ? [i] : [])))
+  const rise = works.map((wk) => Math.min(1, wk.recentCites / Math.max(1, wk.citedBy)))
+  const seedIdx = works.flatMap((wk, i) => (wk.isSeed ? [i] : []))
+  const seedSet = new Set(seedIdx)
+  const counted = works.map(() => new Set<number>())
+  for (const [s, t] of edges) {
+    if (seedSet.has(t)) counted[s].add(t)
+    if (seedSet.has(s)) counted[t].add(s)
+  }
+  const links = counted.map((c) => c.size)
+  const dist = seedDistance(n, edges, seedIdx)
   const prox = dist.map((d) => (Number.isFinite(d) ? 1 / (1 + d) : 0))
+  // bridge boost: touching several seeds is the strongest relevance signal a
+  // citation graph can give — proximity alone can't see it (d=1 either way)
+  const rel = prox.map((p, i) => Math.min(1, p * (1 + 0.6 * Math.max(0, links[i] - 1))))
   return works.map((_, i) => {
     const parts = {
       foundational: pr[i],
       bridge: bt[i],
       momentum: 0.6 * vel[i] + 0.4 * rise[i],
-      relevance: prox[i],
+      relevance: rel[i],
     }
     return {
       score:
-        0.35 * parts.foundational + 0.25 * parts.bridge + 0.2 * parts.momentum + 0.2 * parts.relevance,
+        w.f * parts.foundational + w.b * parts.bridge + w.m * parts.momentum + w.r * parts.relevance,
+      seedLinks: links[i],
       parts,
     }
   })

@@ -43,4 +43,19 @@ assert(m[0].parts.relevance === 1)
 // hot-and-new beats the settled classic on momentum
 assert(m[0].parts.momentum > m[1].parts.momentum)
 
+// a paper touching both seeds gets the bridge boost: 0.5 prox * 1.6 = 0.8
+const b = computeMetrics(
+  [
+    { recentCites: 0, citedBy: 10, isSeed: true },
+    { recentCites: 0, citedBy: 10, isSeed: true },
+    { recentCites: 5, citedBy: 5, isSeed: false },
+  ],
+  [
+    [2, 0],
+    [2, 1],
+  ],
+)
+assert(b[2].seedLinks === 2)
+assert(Math.abs(b[2].parts.relevance - 0.8) < 1e-9)
+
 console.log('metrics ok')

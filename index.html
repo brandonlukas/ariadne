@@ -105,6 +105,15 @@
     #sort button { background: none; border: none; padding: 0; color: var(--faint); }
     #sort button.on { color: var(--ink); }
     #sort button:hover { color: var(--gray); }
+    #preset { display: flex; gap: 8px; align-items: center; padding: 0 18px 8px 22px;
+      font-size: 11px; }
+    #preset[hidden] { display: none; }
+    #preset span { color: var(--faint); letter-spacing: 0.04em; }
+    #preset button { background: none; border: none; padding: 0; color: var(--faint); }
+    #preset button.on { color: var(--thread); }
+    #preset button:hover { color: var(--gray); }
+    #preset #bridges { margin-left: auto; }
+    #preset #bridges[hidden] { display: none; }
 
     #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
       border-top: 1px solid var(--hairline); }
@@ -258,6 +267,13 @@
             <button data-s="year">newest</button>
             <button data-s="momentum">rising</button>
           </div>
+        </div>
+        <div id="preset" hidden>
+          <span>intent</span>
+          <button data-p="canon" class="on">canon</button>
+          <button data-p="catchup">catch-up</button>
+          <button data-p="pulse">pulse</button>
+          <button id="bridges" hidden>⋈ bridges</button>
         </div>
         <ol id="ranked"></ol>
         <div id="lenses" hidden></div>
