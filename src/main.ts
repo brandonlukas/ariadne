@@ -32,6 +32,12 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
 
 const STORE = 'ariadne:weave:v5' // bump when the cached Work shape changes
 
+function saveStore() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({ seeds, corpus, flags }))
+  } catch {} // over quota — reweave on next visit instead
+}
+
 let seeds: Work[] = []
 let sortBy: 'score' | 'year' | 'momentum' = 'score'
 let needle = ''
@@ -408,9 +414,7 @@ weaveBtn.onclick = async () => {
   try {
     corpus = await buildCorpus(seeds, status)
     wovenKey = seedKey()
-    try {
-      localStorage.setItem(STORE, JSON.stringify({ seeds, corpus }))
-    } catch {} // over quota — reweave on next visit instead
+    saveStore()
     present()
     status('')
   } catch (err) {
@@ -463,6 +467,7 @@ function renderList() {
       const body = el('div', 'body')
       const meta = el('div', 'meta', `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) meta.append(el('span', 'seed-mark', ' — seed'))
+      if (flags[w.id] === 'star') meta.append(el('span', 'seed-mark', ' ★'))
       body.append(el('div', 'title', w.title), meta)
       if (w.venue) {
         const venue = el('div', 'venue', w.venue)
@@ -623,6 +628,7 @@ function renderGallery() {
       }
       const m = el('div', 'm', `${rankOf.get(i)} · ${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) m.append(el('span', 'seed', ' — seed'))
+      if (flags[w.id] === 'star') m.append(el('span', 'seed', ' ★'))
       card.append(fig, el('div', 't', w.title), m)
       if (w.venue) {
         const v = el('div', 'v', w.venue)
@@ -681,6 +687,18 @@ function openDetails(i: number) {
   open.href = w.doi ?? `https://openalex.org/${w.id}`
   open.target = '_blank'
   pills.append(open)
+  const setFlag = (kind: 'star' | 'hide') => {
+    if (flags[w.id] === kind) delete flags[w.id]
+    else flags[w.id] = kind
+    saveStore()
+    refreshViews()
+    openDetails(i) // rebuild the panel so the button labels update
+  }
+  const star = el('button', 'pill', flags[w.id] === 'star' ? '★ starred' : '☆ star')
+  star.onclick = () => setFlag('star')
+  const hide = el('button', 'pill', flags[w.id] === 'hide' ? 'unhide' : 'hide')
+  hide.onclick = () => setFlag('hide')
+  pills.append(star, hide)
   if (!seeds.some((s) => s.id === w.id)) {
     const grow = el('button', 'pill', 'add as seed + reweave')
     grow.onclick = () => {
@@ -713,10 +731,10 @@ $('export-md').onclick = () => {
     `Papers: ${corpus.works.length} · ranked by composite influence (foundational 35%, bridge 25%, momentum 20%, relevance 20%)`,
     '',
   ]
-  order.forEach((i, rank) => {
+  order.filter((i) => flags[corpus!.works[i].id] !== 'hide').forEach((i, rank) => {
     const w = corpus!.works[i]
     const m = metrics[i]
-    lines.push(`## ${rank + 1}. ${w.title} (${w.year})${w.isSeed ? ' — SEED' : ''}`)
+    lines.push(`## ${rank + 1}. ${w.title} (${w.year})${w.isSeed ? ' — SEED' : ''}${flags[w.id] === 'star' ? ' ★' : ''}`)
     lines.push(`- Authors: ${w.authors.slice(0, 8).join(', ')}${w.authors.length > 8 ? ' et al.' : ''}`)
     if (w.venue) lines.push(`- Published in: ${w.venue}`)
     if (w.doi) lines.push(`- DOI: ${w.doi}`)
@@ -730,16 +748,19 @@ $('export-md').onclick = () => {
 
 $('export-json').onclick = () => {
   if (!corpus) return
-  const data = order.map((i, rank) => {
-    const w = corpus!.works[i]
-    return {
-      rank: rank + 1,
-      ...w,
-      score: metrics[i].score,
-      parts: metrics[i].parts,
-      why: why(w, metrics[i], seedLinks[i]),
-    }
-  })
+  const data = order
+    .filter((i) => flags[corpus!.works[i].id] !== 'hide')
+    .map((i, rank) => {
+      const w = corpus!.works[i]
+      return {
+        rank: rank + 1,
+        ...w,
+        starred: flags[w.id] === 'star',
+        score: metrics[i].score,
+        parts: metrics[i].parts,
+        why: why(w, metrics[i], seedLinks[i]),
+      }
+    })
   download('ariadne-corpus.json', JSON.stringify(data, null, 2), 'application/json')
 }
 
@@ -749,6 +770,7 @@ try {
   if (saved?.corpus) {
     seeds = saved.seeds
     corpus = saved.corpus
+    flags = saved.flags ?? {}
     wovenKey = seedKey()
     renderChips()
     present()
