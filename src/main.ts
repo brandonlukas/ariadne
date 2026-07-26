@@ -481,10 +481,47 @@ const PLOS_JOURNALS: Record<string, string> = {
   pntd: 'plosntds',
 }
 
+// Some hosts only reveal a figure's path through their API (bioRxiv needs the
+// posting date; eLife needs the asset's revision). Both are CORS-open.
+const asyncFigures = new Map<string, Promise<string[]>>()
+
+function lookupFigures(doi: string): Promise<string[]> {
+  let p = asyncFigures.get(doi)
+  if (p) return p
+  if (isPreprint(doi)) {
+    const server = doi.startsWith('10.1101/') ? 'biorxiv' : 'medrxiv'
+    const suffix = doi.slice(doi.indexOf('/') + 1)
+    p = fetch(`https://api.${server}.org/details/${server}/${doi}`)
+      .then((r) => r.json())
+      .then((j: any) =>
+        // newest revision first — figures live under each version's posting date
+        (j.collection ?? [])
+          .map((c: any) => c.date?.replaceAll('-', '/'))
+          .filter(Boolean)
+          .reverse()
+          .map((d: string) => `https://www.${server}.org/content/${server}/early/${d}/${suffix}/F1.large.jpg`),
+      )
+      .catch(() => [])
+  } else {
+    const id = doi.match(/^10\.7554\/elife\.(\d+)/i)![1]
+    p = fetch(`https://api.elifesciences.org/articles/${id}`)
+      .then((r) => r.text())
+      .then((t) => {
+        const uri = t.match(/https:\/\/iiif[^"]*?fig1-v\d+\.tif/)?.[0]
+        return uri ? [`${uri}/full/617,/0/default.jpg`] : []
+      })
+      .catch(() => [])
+  }
+  asyncFigures.set(doi, p)
+  return p
+}
+
+const strippedDoi = (w: Work) => w.doi?.replace(/^https?:\/\/(dx\.)?doi\.org\//, '') ?? ''
+
 // candidates are tried in order until one loads
 function figureUrls(w: Work): string[] {
   if (w.arxivId) return [`https://ar5iv.labs.arxiv.org/html/${w.arxivId}/assets/x1.png`]
-  const doi = w.doi?.replace(/^https?:\/\/(dx\.)?doi\.org\//, '') ?? ''
+  const doi = strippedDoi(w)
   // Springer Nature (Nature family, BMC, …): 10.1038/s41586-021-03819-2 -> 41586_2021_3819_Fig1
   // Nature serves .png, Nature Communications .jpg, so try both
   const s = doi.match(/^10\.\d+\/s(\d+)-(\d+)-(\d+)-/i)
@@ -497,6 +534,12 @@ function figureUrls(w: Work): string[] {
     return [`https://journals.plos.org/${PLOS_JOURNALS[p[1]]}/article/figure/image?size=medium&id=${doi}.g001`]
   return []
 }
+
+// bioRxiv (10.1101/2021.10.04.463034) and medRxiv (10.1101/2020.05.06.20093542);
+// the same prefix also carries Cold Spring Harbor journals, whose suffixes aren't dated
+const isPreprint = (doi: string) => /^10\.1101\/\d{4}\.\d{2}\.\d{2}\./.test(doi)
+// hosts whose figure path takes an extra API lookup
+const needsLookup = (doi: string) => isPreprint(doi) || /^10\.7554\/elife\./i.test(doi)
 
 let galleryStale = true
 
@@ -518,7 +561,20 @@ function renderGallery() {
         fig.replaceChildren(document.createTextNode('no figure'))
       }
       const srcs = figureUrls(w)
-      if (srcs.length) {
+      if (!srcs.length && needsLookup(strippedDoi(w))) {
+        card.classList.add('pending')
+        lookupFigures(strippedDoi(w)).then((urls) => {
+          if (!urls.length) return nofig()
+          const img = document.createElement('img')
+          img.alt = ''
+          img.loading = 'lazy'
+          let n = 0
+          img.onerror = () => (n < urls.length ? (img.src = urls[n++]) : nofig())
+          img.onload = () => card.classList.remove('pending')
+          img.src = urls[n++]
+          fig.replaceChildren(img)
+        })
+      } else if (srcs.length) {
         card.classList.add('pending')
         const img = document.createElement('img')
         img.alt = ''
