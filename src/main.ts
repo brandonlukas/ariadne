@@ -79,6 +79,7 @@ document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
     document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('on', x === b))
     $('hint').textContent = HINTS[m]
     $('gallery').hidden = m !== 'gallery'
+    $('stage').classList.toggle('gallery', m === 'gallery')
     // build the wall on first open: lazy images never load while the container is hidden
     if (m === 'gallery' && galleryStale) {
       galleryStale = false
