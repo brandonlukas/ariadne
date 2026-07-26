@@ -22,6 +22,8 @@ const HINTS: Record<ViewMode, string> = {
   sphere: 'drag to rotate · touch a paper to find its thread',
 }
 
+const STORE = 'ariadne:weave:v1'
+
 let seeds: Work[] = []
 let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
 const seedKey = () => seeds.map((s) => s.id).sort().join('|')
@@ -91,6 +93,7 @@ function renderChips() {
     }),
   )
   weaveBtn.disabled = seeds.length === 0 || seedKey() === wovenKey
+  if (seeds.length === 0) localStorage.removeItem(STORE)
 }
 
 async function addSeed() {
@@ -136,28 +139,36 @@ $<HTMLButtonElement>('demo').onclick = async (e) => {
 
 // --- weave ---
 
+function present() {
+  if (!corpus) return
+  metrics = computeMetrics(corpus.works, corpus.edges)
+  byId = new Map(corpus.works.map((w, i) => [w.id, i]))
+  const seedIdx = new Set(corpus.works.flatMap((w, i) => (w.isSeed ? [i] : [])))
+  const counted = corpus.works.map(() => new Set<number>())
+  for (const [s, t] of corpus.edges) {
+    if (seedIdx.has(t)) counted[s].add(t)
+    if (seedIdx.has(s)) counted[t].add(s)
+  }
+  seedLinks = counted.map((c) => c.size)
+  order = corpus.works.map((_, i) => i).sort((a, b) => metrics[b].score - metrics[a].score)
+  renderList()
+  renderGraph()
+  $('counts').innerHTML = `<b>${corpus.works.length}</b> papers &nbsp;·&nbsp; <b>${corpus.edges.length}</b> citations`
+  $('stage').classList.add('woven')
+  document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
+}
+
 weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
   panelEl.classList.remove('open')
   try {
     corpus = await buildCorpus(seeds, status)
     wovenKey = seedKey()
-    metrics = computeMetrics(corpus.works, corpus.edges)
-    byId = new Map(corpus.works.map((w, i) => [w.id, i]))
-    const seedIdx = new Set(corpus.works.flatMap((w, i) => (w.isSeed ? [i] : [])))
-    const counted = corpus.works.map(() => new Set<number>())
-    for (const [s, t] of corpus.edges) {
-      if (seedIdx.has(t)) counted[s].add(t)
-      if (seedIdx.has(s)) counted[t].add(s)
-    }
-    seedLinks = counted.map((c) => c.size)
-    order = corpus.works.map((_, i) => i).sort((a, b) => metrics[b].score - metrics[a].score)
-    renderList()
-    renderGraph()
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ seeds, corpus }))
+    } catch {} // over quota — reweave on next visit instead
+    present()
     status('')
-    $('counts').innerHTML = `<b>${corpus.works.length}</b> papers &nbsp;·&nbsp; <b>${corpus.edges.length}</b> citations`
-    $('stage').classList.add('woven')
-    document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
   } catch (err) {
     status(err instanceof Error ? err.message : String(err), true)
   } finally {
@@ -361,3 +372,15 @@ $('export-json').onclick = () => {
   })
   download('ariadne-corpus.json', JSON.stringify(data, null, 2), 'application/json')
 }
+
+// --- remember the weave ---
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null')
+  if (saved?.corpus) {
+    seeds = saved.seeds
+    corpus = saved.corpus
+    wovenKey = seedKey()
+    renderChips()
+    present()
+  }
+} catch {} // corrupt store — start fresh
