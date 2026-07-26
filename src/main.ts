@@ -22,7 +22,7 @@ const HINTS: Record<ViewMode, string> = {
   sphere: 'drag to rotate · touch a paper to find its thread',
 }
 
-const STORE = 'ariadne:weave:v1'
+const STORE = 'ariadne:weave:v2' // v2: works gained venue
 
 let seeds: Work[] = []
 let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
@@ -32,6 +32,7 @@ let metrics: Metrics[] = []
 let order: number[] = []
 let seedLinks: number[] = []
 let byId = new Map<string, number>()
+let yearSpan: [number, number] = [0, 0]
 
 const renderer = createRenderer($<HTMLCanvasElement>('canvas'), {
   onHover(id) {
@@ -153,10 +154,202 @@ function present() {
   order = corpus.works.map((_, i) => i).sort((a, b) => metrics[b].score - metrics[a].score)
   renderList()
   renderGraph()
+  renderYears()
+  renderFacts()
+  $('tabs').hidden = false
+  setTab('papers')
+  lens = null
+  applyBrush(null)
   $('counts').innerHTML = `<b>${corpus.works.length}</b> papers &nbsp;·&nbsp; <b>${corpus.edges.length}</b> citations`
   $('stage').classList.add('woven')
   document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
 }
+
+// --- year histogram + brush ---
+
+const yearsEl = $('years')
+
+function renderYears() {
+  if (!corpus) return
+  const counts = new Map<number, number>()
+  for (const w of corpus.works) if (w.year) counts.set(w.year, (counts.get(w.year) ?? 0) + 1)
+  const max = Math.max(...counts.values())
+  const bars = []
+  for (let y = yearSpan[0]; y <= yearSpan[1]; y++) {
+    const n = counts.get(y) ?? 0
+    const bar = document.createElement('div')
+    bar.dataset.y = String(y)
+    bar.style.height = `${2 + Math.round(26 * (n / max))}px`
+    bar.style.background = yearColor(y, yearSpan[0], yearSpan[1])
+    bar.title = `${y} — ${n} paper${n === 1 ? '' : 's'}`
+    bars.push(bar)
+  }
+  yearsEl.replaceChildren(...bars)
+
+  const ticksEl = $('year-ticks')
+  ticksEl.replaceChildren()
+  const bins = yearSpan[1] - yearSpan[0] + 1
+  ticksEl.style.width = `${bins * 5 - 1}px`
+  for (let y = Math.ceil(yearSpan[0] / 10) * 10; y <= yearSpan[1]; y += 10) {
+    const t = document.createElement('span')
+    t.textContent = String(y)
+    t.style.left = `${((y - yearSpan[0] + 0.5) / bins) * 100}%`
+    ticksEl.append(t)
+  }
+}
+
+const readoutEl = $('brush-readout')
+
+function updateReadout(hoverYear?: number) {
+  if (!corpus) return
+  const pill = (range: string, n: number, clearable: boolean) => {
+    const b = document.createElement('b')
+    b.textContent = range
+    readoutEl.replaceChildren(b, document.createTextNode(`${n} paper${n === 1 ? '' : 's'}`))
+    if (clearable) {
+      const x = document.createElement('span')
+      x.className = 'x'
+      x.textContent = '×'
+      x.onclick = () => applyBrush(null)
+      readoutEl.append(x)
+    }
+    readoutEl.hidden = false
+  }
+  if (hoverYear !== undefined) {
+    pill(String(hoverYear), corpus.works.filter((w) => w.year === hoverYear).length, false)
+  } else if (brushRange) {
+    const [a, b] = brushRange
+    pill(a === b ? String(a) : `${a}–${b}`, corpus.works.filter((w) => w.year >= a && w.year <= b).length, true)
+  } else {
+    readoutEl.hidden = true
+  }
+}
+
+// brush and lens compose: a paper must pass both to stay lit
+let lens: { kind: 'venue' | 'author'; name: string } | null = null
+
+function matches(w: Work): boolean {
+  if (brushRange && (w.year < brushRange[0] || w.year > brushRange[1])) return false
+  if (lens) return lens.kind === 'venue' ? w.venue === lens.name : w.authors.includes(lens.name)
+  return true
+}
+
+function applyFilter() {
+  if (!corpus) return
+  const vis = !brushRange && !lens ? null : new Set(corpus.works.filter(matches).map((w) => w.id))
+  renderer.setFilter(vis)
+  for (const bar of yearsEl.children) {
+    const y = +(bar as HTMLElement).dataset.y!
+    ;(bar as HTMLElement).style.opacity =
+      brushRange && (y < brushRange[0] || y > brushRange[1]) ? '0.25' : '1'
+  }
+  for (const li of rankedEl.children) {
+    const el = li as HTMLElement
+    el.classList.toggle('ghost', vis !== null && !vis.has(el.dataset.id!))
+  }
+  for (const row of document.querySelectorAll<HTMLElement>('#lenses .row'))
+    row.classList.toggle('lit', lens !== null && row.dataset.kind === lens.kind && row.dataset.name === lens.name)
+  updateReadout()
+}
+
+function applyBrush(range: [number, number] | null) {
+  brushRange = range
+  applyFilter()
+}
+
+let brushFrom: number | null = null
+let brushRange: [number, number] | null = null
+const yearAt = (clientX: number) => {
+  const r = yearsEl.getBoundingClientRect()
+  const t = Math.min(0.999, Math.max(0, (clientX - r.left) / r.width))
+  return yearSpan[0] + Math.floor(t * (yearSpan[1] - yearSpan[0] + 1))
+}
+yearsEl.onpointerdown = (e) => {
+  yearsEl.setPointerCapture(e.pointerId)
+  brushFrom = yearAt(e.clientX)
+  brushRange = [brushFrom, brushFrom]
+  applyBrush(brushRange)
+}
+yearsEl.onpointermove = (e) => {
+  if (brushFrom === null) {
+    updateReadout(yearAt(e.clientX))
+    return
+  }
+  const y = yearAt(e.clientX)
+  brushRange = [Math.min(brushFrom, y), Math.max(brushFrom, y)]
+  applyBrush(brushRange)
+}
+yearsEl.onpointerleave = () => updateReadout()
+yearsEl.onpointerup = () => {
+  if (brushRange && brushRange[0] === brushRange[1]) applyBrush((brushRange = null)) // plain click clears
+  brushFrom = null
+}
+
+// --- corpus facts ---
+
+function renderFacts() {
+  if (!corpus) return
+  const works = corpus.works
+  const factsEl = $('facts')
+  const b = document.createElement('b')
+  b.textContent = 'span — '
+  const recent = Math.round((works.filter((w) => w.year >= new Date().getFullYear() - 2).length / works.length) * 100)
+  factsEl.replaceChildren(b, document.createTextNode(`${yearSpan[0]}–${yearSpan[1]} · ${recent}% from the last 3 years`))
+  factsEl.hidden = false
+}
+
+// --- sidebar tabs: papers | venues | authors ---
+
+const lensesEl = $('lenses')
+let tab: 'papers' | 'venues' | 'authors' = 'papers'
+
+function renderLenses() {
+  if (!corpus || tab === 'papers') return
+  const kind = tab === 'venues' ? ('venue' as const) : ('author' as const)
+  const counts = new Map<string, number>()
+  for (const w of corpus.works)
+    for (const x of kind === 'venue' ? (w.venue ? [w.venue] : []) : w.authors)
+      counts.set(x, (counts.get(x) ?? 0) + 1)
+  const entries = [...counts].sort((a, b) => b[1] - a[1])
+  const max = entries[0]?.[1] ?? 1
+  lensesEl.replaceChildren(
+    ...entries.map(([name, n]) => {
+      const row = document.createElement('div')
+      row.className = 'row'
+      row.dataset.kind = kind
+      row.dataset.name = name
+      const nm = document.createElement('span')
+      nm.className = 'n'
+      nm.textContent = name
+      nm.title = name
+      const track = document.createElement('span')
+      track.className = 'track'
+      const fill = document.createElement('i')
+      fill.style.width = `${Math.round((n / max) * 100)}%`
+      track.append(fill)
+      const em = document.createElement('em')
+      em.textContent = String(n)
+      row.append(nm, track, em)
+      row.onclick = () => {
+        lens = lens?.kind === kind && lens.name === name ? null : { kind, name }
+        applyFilter()
+      }
+      return row
+    }),
+  )
+  applyFilter()
+}
+
+function setTab(t: typeof tab) {
+  tab = t
+  document.querySelectorAll<HTMLElement>('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === t))
+  rankedEl.hidden = t !== 'papers'
+  lensesEl.hidden = t === 'papers'
+  renderLenses()
+}
+document.querySelectorAll<HTMLElement>('#tabs button').forEach((b) => {
+  b.onclick = () => setTab(b.dataset.t as typeof tab)
+})
 
 weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
@@ -189,6 +382,7 @@ function renderGraph() {
   const years = works.map((w) => w.year).filter(Boolean)
   const minY = Math.min(...years)
   const maxY = Math.max(...years)
+  yearSpan = [minY, maxY]
   $('year-min').textContent = String(minY)
   $('year-max').textContent = String(maxY)
   const labeled = new Set(order.slice(0, 14))
@@ -321,6 +515,17 @@ function openDetails(i: number) {
   open.target = '_blank'
   open.textContent = 'open paper ↗'
   pills.append(open)
+  if (!seeds.some((s) => s.id === w.id)) {
+    const grow = document.createElement('button')
+    grow.className = 'pill'
+    grow.textContent = 'add as seed + reweave'
+    grow.onclick = () => {
+      seeds.push({ ...w, isSeed: false })
+      renderChips()
+      weaveBtn.click()
+    }
+    pills.append(grow)
+  }
   panelBody.append(pills)
   panelEl.classList.add('open')
 }

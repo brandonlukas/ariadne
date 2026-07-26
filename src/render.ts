@@ -63,6 +63,8 @@ export function createRenderer(
   let hovered: number | null = null
   let selected: number | null = null
   let external: number | null = null
+  let visible: Set<string> | null = null // year-brush filter; null = everything
+  const ghosted = (i: number) => visible !== null && !visible.has(nodes[i].id)
 
   let w = 0
   let h = 0
@@ -87,7 +89,7 @@ export function createRenderer(
     let best: number | null = null
     let bestD = Infinity
     for (let i = 0; i < nodes.length; i++) {
-      if (da[i] < 0.5) continue
+      if (da[i] < 0.5 || ghosted(i)) continue
       const d = Math.hypot(dx[i] - p.x, dy[i] - p.y)
       if (d < Math.max(dr[i] + 2, 9 / view.k) && d < bestD) {
         best = i
@@ -218,7 +220,7 @@ export function createRenderer(
       if (mode === 'sphere' && !lit) continue
       ctx.strokeStyle = lit ? THREAD + 'cc' : 'rgba(27, 26, 23, 0.06)'
       ctx.lineWidth = (lit ? 1.5 : 1) / view.k
-      ctx.globalAlpha = Math.min(da[s], da[t])
+      ctx.globalAlpha = Math.min(da[s], da[t]) * (ghosted(s) || ghosted(t) ? 0.15 : 1)
       ctx.beginPath()
       ctx.moveTo(dx[s], dy[s])
       ctx.lineTo(dx[t], dy[t])
@@ -227,7 +229,7 @@ export function createRenderer(
     }
     for (let i = 0; i < nodes.length; i++) {
       const dim = active != null && i !== active && !hood!.has(i)
-      ctx.globalAlpha = da[i] * (dim ? 0.25 : 1)
+      ctx.globalAlpha = da[i] * (dim ? 0.25 : 1) * (ghosted(i) ? 0.12 : 1)
       ctx.beginPath()
       ctx.arc(dx[i], dy[i], dr[i], 0, Math.PI * 2)
       ctx.fillStyle = nodes[i].color
@@ -246,7 +248,7 @@ export function createRenderer(
     for (let i = 0; i < nodes.length; i++) {
       const wantLabel =
         mode === 'sphere' ? i === active || i === selected : nodes[i].labeled || i === active || i === selected
-      if (!wantLabel) continue
+      if (!wantLabel || ghosted(i)) continue
       const dim = active != null && i !== active && !hood!.has(i)
       ctx.globalAlpha = da[i] * (dim ? 0.2 : 1)
       ctx.strokeStyle = PAPER
@@ -418,6 +420,9 @@ export function createRenderer(
     },
     select(id: string | null) {
       selected = id ? (byId.get(id) ?? null) : null
+    },
+    setFilter(ids: Set<string> | null) {
+      visible = ids
     },
   }
 }

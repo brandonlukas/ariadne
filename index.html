@@ -65,6 +65,24 @@
     #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status.error { color: var(--thread); }
+    #facts { padding: 0 18px 10px 22px; font-size: 11px; color: var(--gray); }
+    #facts b { font-weight: 400; color: var(--faint); }
+    #tabs { display: flex; gap: 14px; padding: 0 18px 8px 22px; font-size: 12px; }
+    #tabs button { background: none; border: none; padding: 0; color: var(--faint); }
+    #tabs button.on { color: var(--ink); }
+    #tabs button:hover { color: var(--gray); }
+    #lenses { flex: 1; overflow-y: auto; border-top: 1px solid var(--hairline);
+      padding: 8px 18px 10px 22px; font-size: 11px; color: var(--gray); }
+    #lenses .row { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; cursor: pointer; }
+    #lenses .row .n { width: 140px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; flex-shrink: 0; }
+    #lenses .row:hover .n { color: var(--ink); }
+    #lenses .row .track { flex: 1; height: 2px; background: var(--hairline); }
+    #lenses .row .track i { display: block; height: 100%; background: var(--ink); }
+    #lenses .row em { font-style: normal; width: 22px; text-align: right; color: var(--faint);
+      font-variant-numeric: tabular-nums; }
+    #lenses .row.lit .n, #lenses .row.lit em { color: var(--thread); }
+    #lenses .row.lit .track i { background: var(--thread); }
 
     #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
       border-top: 1px solid var(--hairline); }
@@ -72,6 +90,7 @@
       border-bottom: 1px solid var(--hairline); cursor: pointer; }
     #ranked li:hover, #ranked li.hover { background: var(--hover); }
     #ranked li.active { background: var(--sel); }
+    #ranked li.ghost { opacity: 0.35; }
     #ranked .rank { color: var(--faint); font-size: 11px; padding-top: 2px; min-width: 16px;
       text-align: right; font-variant-numeric: tabular-nums; }
     #ranked .body { flex: 1; min-width: 0; }
@@ -91,6 +110,20 @@
     #modes button.on { color: var(--ink); }
     #modes button:hover { color: var(--gray); }
 
+    #years { position: absolute; left: 20px; bottom: 46px; display: none;
+      align-items: flex-end; gap: 1px; cursor: crosshair; touch-action: none; }
+    #years div { width: 4px; border-radius: 1px; }
+    #year-ticks { position: absolute; left: 20px; bottom: 34px; height: 10px; display: none;
+      font-size: 9px; color: var(--faint); font-variant-numeric: tabular-nums; }
+    #year-ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+    #brush-readout { position: absolute; left: 20px; bottom: 88px; display: flex;
+      align-items: center; gap: 8px; font-size: 11px; color: var(--ink);
+      border: 1px solid var(--hairline); border-radius: 999px; padding: 3px 10px;
+      background: var(--paper); }
+    #brush-readout[hidden] { display: none; }
+    #brush-readout b { font-weight: 400; color: var(--thread); font-variant-numeric: tabular-nums; }
+    #brush-readout .x { color: var(--faint); cursor: pointer; }
+    #brush-readout .x:hover { color: var(--ink); }
     #legend { position: absolute; left: 20px; bottom: 16px; font-size: 11px; color: var(--gray);
       display: none; align-items: center; gap: 8px; pointer-events: none; }
     #legend .ramp { width: 84px; height: 6px; border-radius: 3px;
@@ -113,8 +146,9 @@
       margin-top: 10px; font: inherit; color: var(--thread); }
     #empty button:hover { text-decoration: underline; }
     #empty button:disabled { color: var(--faint); text-decoration: none; }
-    #stage.woven #modes, #stage.woven #legend, #stage.woven #toolbar { display: flex; }
+    #stage.woven #modes, #stage.woven #legend, #stage.woven #toolbar, #stage.woven #years { display: flex; }
     #stage.woven #hint { display: block; }
+    #stage.woven #year-ticks { display: block; }
     #stage.woven #empty { display: none; }
 
     #panel { position: absolute; top: 0; right: 0; bottom: 0; width: 384px;
@@ -163,7 +197,14 @@
         <ul id="seed-chips"></ul>
         <button id="weave" disabled>weave the graph</button>
         <div id="status"></div>
+        <div id="facts" hidden></div>
+        <div id="tabs" hidden>
+          <button data-t="papers" class="on">papers</button>
+          <button data-t="venues">venues</button>
+          <button data-t="authors">authors</button>
+        </div>
         <ol id="ranked"></ol>
+        <div id="lenses" hidden></div>
       </aside>
       <main id="stage">
         <canvas id="canvas"></canvas>
@@ -174,6 +215,9 @@
           <button data-m="circle">circle</button>
           <button data-m="sphere">sphere</button>
         </div>
+        <div id="years"></div>
+        <div id="year-ticks"></div>
+        <div id="brush-readout" hidden></div>
         <div id="legend">
           <span id="year-min"></span><span class="ramp"></span><span id="year-max"></span>
           <span class="dot"></span><span>seed</span>

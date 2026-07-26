@@ -4,6 +4,7 @@ export interface Work {
   year: number
   citedBy: number
   authors: string[]
+  venue: string | null
   refs: string[]
   recentCites: number
   doi: string | null
@@ -19,7 +20,7 @@ export interface Corpus {
 const API = 'https://api.openalex.org'
 const MAILTO = 'brandonlukas@gmail.com'
 const SELECT =
-  'id,display_name,publication_year,cited_by_count,authorships,referenced_works,counts_by_year,doi,abstract_inverted_index'
+  'id,display_name,publication_year,cited_by_count,authorships,primary_location,referenced_works,counts_by_year,doi,abstract_inverted_index'
 const MAX_NODES = 200
 const CITERS_PER_SEED = 50
 
@@ -56,6 +57,7 @@ function parseWork(j: any): Work {
     year: j.publication_year ?? 0,
     citedBy: j.cited_by_count ?? 0,
     authors: (j.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
+    venue: j.primary_location?.source?.display_name ?? null,
     refs: (j.referenced_works ?? []).map(short),
     recentCites,
     doi: j.doi ?? null,
