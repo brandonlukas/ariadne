@@ -85,8 +85,21 @@
     #lenses .row.lit .n, #lenses .row.lit em { color: var(--thread); }
     #lenses .row.lit .track i { background: var(--thread); }
 
+    #list-tools { display: flex; gap: 12px; align-items: center; padding: 0 18px 8px 22px; }
+    #list-tools[hidden] { display: none; }
+    #find { flex: 1; min-width: 0; background: var(--paper); border: 1px solid var(--hairline);
+      border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 11px;
+      color: var(--ink); outline: none; }
+    #find::placeholder { color: var(--faint); }
+    #find:focus { border-color: var(--faint); }
+    #sort { display: flex; gap: 8px; font-size: 11px; }
+    #sort button { background: none; border: none; padding: 0; color: var(--faint); }
+    #sort button.on { color: var(--ink); }
+    #sort button:hover { color: var(--gray); }
+
     #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
       border-top: 1px solid var(--hairline); }
+    #ranked li[hidden] { display: none; }
     #ranked li { display: flex; gap: 12px; padding: 11px 18px 11px 22px;
       border-bottom: 1px solid var(--hairline); cursor: pointer; }
     #ranked li:hover, #ranked li.hover { background: var(--hover); }
@@ -226,6 +239,14 @@
           <button data-t="venues">venues</button>
           <button data-t="authors">authors</button>
         </div>
+        <div id="list-tools" hidden>
+          <input id="find" placeholder="filter…" />
+          <div id="sort">
+            <button data-s="score" class="on">influence</button>
+            <button data-s="year">newest</button>
+            <button data-s="momentum">rising</button>
+          </div>
+        </div>
         <ol id="ranked"></ol>
         <div id="lenses" hidden></div>
       </aside>
@@ -251,6 +272,7 @@
         <div id="hint"></div>
         <div id="toolbar">
           <button class="pill" id="export-md">export .md</button>
+          <button class="pill" id="export-bib">export .bib</button>
           <button class="pill" id="export-json">export .json</button>
         </div>
         <div id="panel">

@@ -33,6 +33,9 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
 const STORE = 'ariadne:weave:v5' // bump when the cached Work shape changes
 
 let seeds: Work[] = []
+let sortBy: 'score' | 'year' | 'momentum' = 'score'
+let needle = ''
+let flags: Record<string, 'star' | 'hide'> = {}
 let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
 const seedKey = () => seeds.map((s) => s.id).sort().join('|')
 let corpus: Corpus | null = null
@@ -161,7 +164,9 @@ function present() {
     if (seedIdx.has(s)) counted[t].add(s)
   }
   seedLinks = counted.map((c) => c.size)
-  order = corpus.works.map((_, i) => i).sort((a, b) => metrics[b].score - metrics[a].score)
+  computeOrder()
+  $<HTMLInputElement>('find').value = ''
+  needle = ''
   renderList()
   renderGraph()
   $('gallery').replaceChildren()
@@ -169,12 +174,52 @@ function present() {
   renderYears()
   renderFacts()
   $('tabs').hidden = false
+  $('list-tools').hidden = false
   setTab('papers')
   lens = null
   applyBrush(null)
   $('counts').innerHTML = `<b>${corpus.works.length}</b> papers &nbsp;·&nbsp; <b>${corpus.edges.length}</b> citations`
   $('stage').classList.add('woven')
   document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
+}
+
+// --- list order + refresh ---
+
+function computeOrder() {
+  if (!corpus) return
+  const key =
+    sortBy === 'score'
+      ? (i: number) => metrics[i].score
+      : sortBy === 'year'
+        ? (i: number) => corpus!.works[i].year
+        : (i: number) => metrics[i].parts.momentum
+  order = corpus.works.map((_, i) => i).sort((a, b) => key(b) - key(a))
+}
+
+// rebuild everything that depends on `order` or per-paper flags
+function refreshViews() {
+  renderList()
+  galleryStale = true
+  const gallery = $('gallery')
+  if (!gallery.hidden) {
+    galleryStale = false
+    renderGallery()
+  }
+  applyFilter()
+}
+
+document.querySelectorAll<HTMLButtonElement>('#sort button').forEach((b) => {
+  b.onclick = () => {
+    sortBy = b.dataset.s as typeof sortBy
+    document.querySelectorAll('#sort button').forEach((x) => x.classList.toggle('on', x === b))
+    computeOrder()
+    refreshViews()
+  }
+})
+
+$<HTMLInputElement>('find').oninput = (e) => {
+  needle = (e.target as HTMLInputElement).value.trim().toLowerCase()
+  applyFilter()
 }
 
 // --- year histogram + brush ---
@@ -232,18 +277,21 @@ function updateReadout(hoverYear?: number) {
   }
 }
 
-// brush and lens compose: a paper must pass both to stay lit
+// brush, lens, text, and hide-flags compose: a paper must pass all to stay lit
 let lens: { kind: 'venue' | 'author'; name: string } | null = null
 
 function matches(w: Work): boolean {
+  if (flags[w.id] === 'hide') return false
   if (brushRange && (w.year < brushRange[0] || w.year > brushRange[1])) return false
+  if (needle && !`${w.title} ${w.authors.join(' ')} ${w.venue ?? ''}`.toLowerCase().includes(needle)) return false
   if (lens) return lens.kind === 'venue' ? w.venue === lens.name : w.authors.includes(lens.name)
   return true
 }
 
 function applyFilter() {
   if (!corpus) return
-  const vis = !brushRange && !lens ? null : new Set(corpus.works.filter(matches).map((w) => w.id))
+  const filtering = !!(brushRange || lens || needle) || corpus.works.some((w) => flags[w.id] === 'hide')
+  const vis = filtering ? new Set(corpus.works.filter(matches).map((w) => w.id)) : null
   renderer.setFilter(vis)
   for (const bar of yearsEl.children) {
     const y = +(bar as HTMLElement).dataset.y!
@@ -251,8 +299,10 @@ function applyFilter() {
       brushRange && (y < brushRange[0] || y > brushRange[1]) ? '0.25' : '1'
   }
   for (const li of rankedEl.children) {
-    const el = li as HTMLElement
-    el.classList.toggle('ghost', vis !== null && !vis.has(el.dataset.id!))
+    const row = li as HTMLElement
+    const miss = vis !== null && !vis.has(row.dataset.id!)
+    row.classList.toggle('ghost', miss)
+    row.hidden = miss && !!needle // text filter hides; brush/lens only dim
   }
   for (const card of document.querySelectorAll<HTMLElement>('#gallery .card'))
     card.classList.toggle('ghost', vis !== null && !vis.has(card.dataset.id!))
