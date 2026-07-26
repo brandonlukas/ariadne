@@ -97,7 +97,7 @@
       background: linear-gradient(to right, #a8a494, #69665b, #1c1b18); }
     #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
       background: var(--thread); margin: 0 3px 0 10px; }
-    #hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    #hint { position: absolute; bottom: 16px; right: 16px;
       font-size: 11px; color: var(--faint); pointer-events: none; white-space: nowrap;
       display: none; }
 
@@ -109,6 +109,10 @@
     #empty { position: absolute; inset: 0; display: flex; align-items: center;
       justify-content: center; color: var(--faint); font-size: 13px; text-align: center;
       pointer-events: none; line-height: 1.8; }
+    #empty button { pointer-events: auto; background: none; border: none; padding: 0;
+      margin-top: 10px; font: inherit; color: var(--thread); }
+    #empty button:hover { text-decoration: underline; }
+    #empty button:disabled { color: var(--faint); text-decoration: none; }
     #stage.woven #modes, #stage.woven #legend, #stage.woven #toolbar { display: flex; }
     #stage.woven #hint { display: block; }
     #stage.woven #empty { display: none; }
@@ -163,7 +167,8 @@
       </aside>
       <main id="stage">
         <canvas id="canvas"></canvas>
-        <div id="empty">Add one or more seed papers,<br />then weave the graph.</div>
+        <div id="empty"><div>Add one or more seed papers,<br />then weave the graph.<br />
+          <button id="demo">or try it — deep learning + imagenet</button></div></div>
         <div id="modes">
           <button data-m="constellation" class="on">constellation</button>
           <button data-m="circle">circle</button>

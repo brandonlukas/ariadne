@@ -23,6 +23,8 @@ const HINTS: Record<ViewMode, string> = {
 }
 
 let seeds: Work[] = []
+let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
+const seedKey = () => seeds.map((s) => s.id).sort().join('|')
 let corpus: Corpus | null = null
 let metrics: Metrics[] = []
 let order: number[] = []
@@ -88,7 +90,7 @@ function renderChips() {
       return li
     }),
   )
-  weaveBtn.disabled = seeds.length === 0
+  weaveBtn.disabled = seeds.length === 0 || seedKey() === wovenKey
 }
 
 async function addSeed() {
@@ -115,6 +117,23 @@ seedInput.onkeydown = (e) => {
   if (e.key === 'Enter') addSeed()
 }
 
+$<HTMLButtonElement>('demo').onclick = async (e) => {
+  const btn = e.target as HTMLButtonElement
+  btn.disabled = true
+  status('Resolving demo seeds…')
+  try {
+    for (const q of ['10.1038/nature14539', '10.1145/3065386']) {
+      const w = await resolveSeed(q)
+      if (!seeds.some((s) => s.id === w.id)) seeds.push(w)
+    }
+    renderChips()
+    weaveBtn.click()
+  } catch (err) {
+    status(err instanceof Error ? err.message : String(err), true)
+    btn.disabled = false
+  }
+}
+
 // --- weave ---
 
 weaveBtn.onclick = async () => {
@@ -122,6 +141,7 @@ weaveBtn.onclick = async () => {
   panelEl.classList.remove('open')
   try {
     corpus = await buildCorpus(seeds, status)
+    wovenKey = seedKey()
     metrics = computeMetrics(corpus.works, corpus.edges)
     byId = new Map(corpus.works.map((w, i) => [w.id, i]))
     const seedIdx = new Set(corpus.works.flatMap((w, i) => (w.isSeed ? [i] : [])))
@@ -141,7 +161,7 @@ weaveBtn.onclick = async () => {
   } catch (err) {
     status(err instanceof Error ? err.message : String(err), true)
   } finally {
-    weaveBtn.disabled = seeds.length === 0
+    renderChips()
   }
 }
 

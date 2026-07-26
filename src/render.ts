@@ -411,7 +411,8 @@ export function createRenderer(
         target.x = target.y = 0
       } else {
         target.k = Math.max(view.k, 1.1)
-        target.x = -dx[i] * target.k
+        // center in the area left of the 384px detail panel
+        target.x = -dx[i] * target.k - 192
         target.y = -dy[i] * target.k
       }
     },
