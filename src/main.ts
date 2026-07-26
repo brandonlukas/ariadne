@@ -591,9 +591,10 @@ function why(w: Work, m: Metrics, links: number): string {
   if (w.isSeed) return 'One of your seed papers — the thread starts here.'
   const bits: string[] = []
   if (links >= 2) bits.push(`directly linked to ${links} of your seeds`)
-  if (m.parts.foundational > 0.5) bits.push('structurally foundational in this neighborhood')
-  if (m.parts.bridge > 0.5) bits.push('bridges otherwise-separate clusters')
-  if (m.parts.momentum > 0.6) bits.push(`gaining citations fast (${w.recentCites.toLocaleString()} in the last 3 years)`)
+  // components are rank-normalized, so these thresholds mean "top ~15%"
+  if (m.parts.foundational > 0.85) bits.push('structurally foundational in this neighborhood')
+  if (m.parts.bridge > 0.85) bits.push('bridges otherwise-separate clusters')
+  if (m.parts.momentum > 0.75) bits.push(`gaining citations fast (${w.recentCites.toLocaleString()} in the last 3 years)`)
   if (!bits.length) bits.push(`part of the seed neighborhood, cited ${w.citedBy.toLocaleString()} times overall`)
   const s = bits.join('; ')
   return s.charAt(0).toUpperCase() + s.slice(1) + '.'

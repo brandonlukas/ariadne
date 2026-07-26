@@ -79,25 +79,41 @@ export function seedDistance(n: number, edges: [number, number][], seedIdx: numb
   return dist
 }
 
+// rank-normalize: pagerank and citation counts are heavy-tailed, so dividing by
+// the max lets one outlier compress everyone else to ~0; ties share a rank
 const norm = (xs: number[]) => {
-  const m = Math.max(...xs, 1e-12)
-  return xs.map((x) => x / m)
+  const sorted = [...xs].sort((a, b) => a - b)
+  const first = new Map<number, number>()
+  sorted.forEach((v, i) => {
+    if (!first.has(v)) first.set(v, i)
+  })
+  const d = Math.max(1, xs.length - 1)
+  return xs.map((v) => first.get(v)! / d)
 }
 
 export function computeMetrics(
-  works: { recentCites: number; isSeed: boolean }[],
+  works: { recentCites: number; citedBy: number; isSeed: boolean }[],
   edges: [number, number][],
 ): Metrics[] {
   const n = works.length
   const pr = norm(pagerank(n, edges))
   const bt = norm(betweenness(n, edges))
   const vel = norm(works.map((w) => Math.log1p(w.recentCites)))
+  // fraction of lifetime citations from the last 3 years — high for new-and-hot
+  // papers at any absolute count, near zero for settled classics
+  const rise = works.map((w) => Math.min(1, w.recentCites / Math.max(1, w.citedBy)))
   const dist = seedDistance(n, edges, works.flatMap((w, i) => (w.isSeed ? [i] : [])))
   const prox = dist.map((d) => (Number.isFinite(d) ? 1 / (1 + d) : 0))
   return works.map((_, i) => {
-    const parts = { foundational: pr[i], bridge: bt[i], momentum: vel[i], relevance: prox[i] }
+    const parts = {
+      foundational: pr[i],
+      bridge: bt[i],
+      momentum: 0.6 * vel[i] + 0.4 * rise[i],
+      relevance: prox[i],
+    }
     return {
-      score: 0.35 * pr[i] + 0.25 * bt[i] + 0.2 * vel[i] + 0.2 * prox[i],
+      score:
+        0.35 * parts.foundational + 0.25 * parts.bridge + 0.2 * parts.momentum + 0.2 * parts.relevance,
       parts,
     }
   })

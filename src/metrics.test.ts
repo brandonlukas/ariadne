@@ -33,12 +33,14 @@ assert(!Number.isFinite(d[3]))
 
 const m = computeMetrics(
   [
-    { recentCites: 10, isSeed: true },
-    { recentCites: 0, isSeed: false },
+    { recentCites: 10, citedBy: 12, isSeed: true },
+    { recentCites: 0, citedBy: 500, isSeed: false },
   ],
   [[1, 0]],
 )
 assert(m.every((x) => x.score >= 0 && x.score <= 1.0001))
 assert(m[0].parts.relevance === 1)
+// hot-and-new beats the settled classic on momentum
+assert(m[0].parts.momentum > m[1].parts.momentum)
 
 console.log('metrics ok')
