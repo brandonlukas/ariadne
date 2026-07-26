@@ -74,6 +74,16 @@
     #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status.error { color: var(--thread); }
+    #ai { padding: 0 18px 6px 22px; }
+    #ai button { background: none; border: none; padding: 0; font-size: 11px; color: var(--faint); }
+    #ai button:hover { color: var(--gray); }
+    #ai input { width: 100%; margin-top: 6px; background: var(--paper); color: var(--ink);
+      border: 1px solid var(--hairline); border-radius: 999px; padding: 4px 10px;
+      font: inherit; font-size: 11px; outline: none; }
+    #ai input:focus { border-color: var(--faint); }
+    #intent-line { padding: 0 18px 10px 22px; font-size: 11.5px; font-style: italic;
+      color: var(--gray); }
+    #intent-line[hidden] { display: none; }
     #facts { padding: 0 18px 10px 22px; font-size: 11px; color: var(--gray); }
     #facts b { font-weight: 400; color: var(--faint); }
     #tabs { display: flex; gap: 14px; padding: 0 18px 8px 22px; font-size: 12px; }
@@ -254,6 +264,11 @@
         <ul id="seed-chips"></ul>
         <button id="weave" disabled>weave the graph</button>
         <div id="status"></div>
+        <div id="ai">
+          <button id="ai-toggle">✦ ai off</button>
+          <input id="ai-key" type="password" placeholder="OpenRouter key — free at openrouter.ai" hidden />
+        </div>
+        <div id="intent-line" hidden></div>
         <div id="facts" hidden></div>
         <div id="tabs" hidden>
           <button data-t="papers" class="on">papers</button>

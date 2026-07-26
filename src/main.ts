@@ -1,4 +1,5 @@
 import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type Work } from './api.ts'
+import { getKey, inferIntent, setKey, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
@@ -34,7 +35,7 @@ const STORE = 'ariadne:weave:v5' // bump when the cached Work shape changes
 
 function saveStore() {
   try {
-    localStorage.setItem(STORE, JSON.stringify({ seeds, corpus, flags }))
+    localStorage.setItem(STORE, JSON.stringify({ seeds, corpus, flags, intent, aiWhy }))
   } catch {} // over quota — reweave on next visit instead
 }
 
@@ -44,6 +45,9 @@ let preset: keyof typeof PRESETS = 'canon'
 let bridgesOnly = false
 let needle = ''
 let flags: Record<string, 'star' | 'hide'> = {}
+let intent = '' // the LLM's one-line reading of what the seed set is asking
+let aiWhy: Record<string, string> = {}
+let panelId = ''
 let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
 const seedKey = () => seeds.map((s) => s.id).sort().join('|')
 let corpus: Corpus | null = null
@@ -95,6 +99,46 @@ document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
 function status(msg: string, isError = false) {
   statusEl.textContent = msg
   statusEl.classList.toggle('error', isError)
+}
+
+// --- ai: bring-your-own free key ---
+
+const aiKeyEl = $<HTMLInputElement>('ai-key')
+const aiToggle = $<HTMLButtonElement>('ai-toggle')
+const aiLabel = () => (aiToggle.textContent = getKey() ? '✦ ai on' : '✦ ai off')
+aiToggle.onclick = () => {
+  aiKeyEl.hidden = !aiKeyEl.hidden
+  if (!aiKeyEl.hidden) {
+    aiKeyEl.value = getKey()
+    aiKeyEl.focus()
+  }
+}
+aiKeyEl.onchange = () => {
+  setKey(aiKeyEl.value.trim())
+  aiKeyEl.hidden = true
+  aiLabel()
+  maybeInferIntent()
+}
+aiLabel()
+
+function renderIntent() {
+  const line = $('intent-line')
+  line.hidden = !intent
+  line.textContent = intent ? `✦ ${intent}` : ''
+}
+
+async function maybeInferIntent() {
+  if (!corpus || !getKey() || intent) return
+  const line = $('intent-line')
+  line.hidden = false
+  line.textContent = '✦ reading the seeds…'
+  try {
+    intent = await inferIntent(corpus.works.filter((w) => w.isSeed))
+    saveStore()
+  } catch (err) {
+    line.textContent = `✦ ${err instanceof Error ? err.message : String(err)}`
+  }
+  renderIntent()
 }
 
 // --- seeds ---
@@ -206,6 +250,7 @@ function present() {
   galleryStale = true
   renderYears()
   renderFacts()
+  renderIntent()
   $('tabs').hidden = false
   $('list-tools').hidden = false
   $('preset').hidden = false
@@ -474,10 +519,13 @@ weaveBtn.onclick = async () => {
   try {
     corpus = await buildCorpus(seeds, status)
     wovenKey = seedKey()
+    intent = '' // the question changed with the seeds; cached answers went stale too
+    aiWhy = {}
     history.replaceState(null, '', '#s=' + seeds.map((s) => s.id).join(','))
     saveStore()
     present()
     status('')
+    maybeInferIntent()
   } catch (err) {
     status(err instanceof Error ? err.message : String(err), true)
   } finally {
@@ -733,8 +781,23 @@ function openDetails(i: number) {
     el('div', 'date', `${w.venue ? w.venue + ' · ' : ''}${w.year} · cited ${w.citedBy.toLocaleString()} times`),
   )
   if (w.abstract) panelBody.append(el('p', 'desc', w.abstract))
+  panelId = w.id
   const whyEl = el('p', 'why')
-  whyEl.append(el('b', '', 'why it matters'), document.createTextNode(' — ' + why(w, m, seedLinks[i])))
+  const ai = aiWhy[w.id]
+  whyEl.append(
+    el('b', '', ai ? '✦ why it matters for your thread' : 'why it matters'),
+    document.createTextNode(' — ' + (ai ?? why(w, m, seedLinks[i]))),
+  )
+  if (!ai && getKey() && intent) {
+    whyEl.append(el('span', 'seed-mark', ' ✦…'))
+    whyForIntent(intent, w, m, corpus.works.filter((x) => x.isSeed).map((x) => x.title))
+      .then((t) => {
+        aiWhy[w.id] = t
+        saveStore()
+        if (panelId === w.id) openDetails(i) // panel still on this paper — swap the text in
+      })
+      .catch(() => whyEl.querySelector('.seed-mark')?.remove())
+  }
   panelBody.append(whyEl)
   for (const [name, v] of Object.entries(m.parts)) {
     const row = el('div', 'meter')
@@ -865,6 +928,8 @@ try {
     seeds = saved.seeds
     corpus = saved.corpus
     flags = saved.flags ?? {}
+    intent = saved.intent ?? ''
+    aiWhy = saved.aiWhy ?? {}
     wovenKey = seedKey()
     renderChips()
     present()
