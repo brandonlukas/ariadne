@@ -523,8 +523,18 @@ function renderGallery() {
         const img = document.createElement('img')
         img.alt = ''
         img.loading = 'lazy'
+        // walk the candidates, then walk them once more — a burst of loads can
+        // draw a transient failure from a publisher's CDN
         let next = 0
-        const tryNext = () => (next < srcs.length ? (img.src = srcs[next++]) : nofig())
+        let retried = false
+        const tryNext = () => {
+          if (next < srcs.length) img.src = `${srcs[next++]}${retried ? '#r' : ''}`
+          else if (!retried) {
+            retried = true
+            next = 0
+            setTimeout(tryNext, 1500)
+          } else nofig()
+        }
         img.onerror = tryNext
         img.onload = () => {
           // ar5iv answers 200 with a 325x400 "no image available" placeholder
