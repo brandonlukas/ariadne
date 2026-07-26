@@ -444,6 +444,7 @@ weaveBtn.onclick = async () => {
   try {
     corpus = await buildCorpus(seeds, status)
     wovenKey = seedKey()
+    history.replaceState(null, '', '#s=' + seeds.map((s) => s.id).join(','))
     saveStore()
     present()
     status('')
@@ -752,6 +753,13 @@ function download(name: string, text: string, type: string) {
   URL.revokeObjectURL(a.href)
 }
 
+$('copy-link').onclick = async (e) => {
+  const b = e.target as HTMLButtonElement
+  await navigator.clipboard.writeText(location.href)
+  b.textContent = 'copied ✓'
+  setTimeout(() => (b.textContent = 'copy link'), 1200)
+}
+
 $('export-md').onclick = () => {
   if (!corpus) return
   const lines = [
@@ -830,3 +838,19 @@ try {
     present()
   }
 } catch {} // corrupt store — start fresh
+
+// a shared link's seeds win over whatever this browser had woven before
+const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
+if (linked.length && [...linked].sort().join('|') !== wovenKey) {
+  ;(async () => {
+    status('Resolving linked seeds…')
+    try {
+      seeds = []
+      for (const id of linked) seeds.push(await resolveSeed(id))
+      renderChips()
+      weaveBtn.click()
+    } catch (err) {
+      status(err instanceof Error ? err.message : String(err), true)
+    }
+  })()
+}
