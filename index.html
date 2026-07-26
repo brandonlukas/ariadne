@@ -48,6 +48,15 @@
     #add-seed { background: var(--paper); color: var(--ink); border: 1px solid var(--hairline);
       border-radius: 999px; padding: 0 16px; }
     #add-seed:hover { border-color: var(--faint); }
+    #picker { list-style: none; margin: 8px 0 0; padding: 0 18px 0 22px; display: flex;
+      flex-direction: column; gap: 4px; }
+    #picker:empty { display: none; }
+    #picker li { display: flex; align-items: baseline; gap: 8px; cursor: pointer;
+      border: 1px dashed var(--hairline); border-radius: 8px; padding: 6px 10px;
+      font-size: 12px; }
+    #picker li:hover { background: var(--hover); border-style: solid; }
+    #picker .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #picker .y { color: var(--faint); white-space: nowrap; }
     #seed-chips { list-style: none; margin: 10px 0 0; padding: 0 18px 0 22px; display: flex;
       flex-direction: column; gap: 5px; }
     #seed-chips li { display: flex; align-items: center; gap: 8px;
@@ -230,6 +239,7 @@
           <input id="seed-input" placeholder="DOI or paper title…" />
           <button id="add-seed">add</button>
         </form>
+        <ul id="picker"></ul>
         <ul id="seed-chips"></ul>
         <button id="weave" disabled>weave the graph</button>
         <div id="status"></div>

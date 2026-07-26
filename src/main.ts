@@ -1,4 +1,4 @@
-import { buildCorpus, resolveSeed, stripDoi, type Corpus, type Work } from './api.ts'
+import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type Work } from './api.ts'
 import { computeMetrics, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
@@ -116,17 +116,46 @@ function renderChips() {
   if (seeds.length === 0) localStorage.removeItem(STORE)
 }
 
+const pickerEl = $<HTMLUListElement>('picker')
+
+function pushSeed(w: Work) {
+  if (!seeds.some((s) => s.id === w.id)) seeds.push(w)
+  seedInput.value = ''
+  status('')
+  renderChips()
+}
+
 async function addSeed() {
   const q = seedInput.value.trim()
   if (!q) return
   addSeedBtn.disabled = true
+  pickerEl.replaceChildren()
   status('Resolving paper…')
   try {
-    const w = await resolveSeed(q)
-    if (!seeds.some((s) => s.id === w.id)) seeds.push(w)
-    seedInput.value = ''
-    status('')
-    renderChips()
+    if (idLike(q)) {
+      pushSeed(await resolveSeed(q))
+    } else {
+      const results = await searchSeeds(q, 3)
+      if (!results.length) throw new Error(`No paper found for “${q}”`)
+      if (results.length === 1) pushSeed(results[0])
+      else {
+        // fuzzy match — let the user confirm which paper they meant
+        status('Which one?')
+        pickerEl.replaceChildren(
+          ...results.map((w) => {
+            const li = el('li')
+            const t = el('span', 't', w.title)
+            t.title = w.title
+            li.append(t, el('span', 'y', `${w.authors[0]?.split(' ').pop() ?? '?'} ${w.year}`))
+            li.onclick = () => {
+              pickerEl.replaceChildren()
+              pushSeed(w)
+            }
+            return li
+          }),
+        )
+      }
+    }
   } catch (err) {
     status(err instanceof Error ? err.message : String(err), true)
   } finally {
@@ -134,6 +163,7 @@ async function addSeed() {
     seedInput.focus()
   }
 }
+seedInput.oninput = () => pickerEl.replaceChildren()
 
 $<HTMLFormElement>('seed-form').onsubmit = (e) => {
   e.preventDefault()
