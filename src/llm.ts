@@ -3,8 +3,9 @@ import type { Metrics } from './metrics.ts'
 
 // bring-your-own key: OpenRouter's free tier, never shipped in the repo
 const KEY = 'ariadne:llm-key'
+const MODEL_KEY = 'ariadne:llm-model'
 // free models churn on OpenRouter — walk the list until one answers
-const MODELS = [
+export const MODELS = [
   'nvidia/nemotron-3-super-120b-a12b:free',
   'google/gemma-4-31b-it:free',
   'openai/gpt-oss-20b:free',
@@ -12,10 +13,14 @@ const MODELS = [
 
 export const getKey = () => localStorage.getItem(KEY) ?? ''
 export const setKey = (k: string) => (k ? localStorage.setItem(KEY, k) : localStorage.removeItem(KEY))
+export const getModel = () => localStorage.getItem(MODEL_KEY) ?? ''
+export const setModel = (m: string) => (m ? localStorage.setItem(MODEL_KEY, m) : localStorage.removeItem(MODEL_KEY))
 
 async function ask(prompt: string): Promise<string> {
   let err = new Error('AI request failed')
-  for (const model of MODELS) {
+  // the user's chosen model goes first; the free list stays as the safety net
+  const models = getModel() ? [getModel(), ...MODELS] : MODELS
+  for (const model of models) {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getKey()}` },

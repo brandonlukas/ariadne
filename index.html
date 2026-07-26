@@ -14,6 +14,7 @@
       --hover: #f6f5f2;
       --sel: #f0efeb;
       --thread: #b41f3a;
+      --ok: #2e8b57;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -75,8 +76,9 @@
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status.error { color: var(--thread); }
     #ai { padding: 0 18px 6px 22px; }
-    #ai button { background: none; border: none; padding: 0; font-size: 11px; color: var(--faint); }
-    #ai button:hover { color: var(--gray); }
+    #ai > button { background: none; border: none; padding: 0; font-size: 11px; color: var(--faint); }
+    #ai > button:hover { color: var(--gray); }
+    #ai > button.on { color: var(--ok); }
     #ai input { width: 100%; margin-top: 6px; background: var(--paper); color: var(--ink);
       border: 1px solid var(--hairline); border-radius: 999px; padding: 4px 10px;
       font: inherit; font-size: 11px; outline: none; }
@@ -111,10 +113,6 @@
       color: var(--ink); outline: none; }
     #find::placeholder { color: var(--faint); }
     #find:focus { border-color: var(--faint); }
-    #sort { display: flex; gap: 8px; font-size: 11px; }
-    #sort button { background: none; border: none; padding: 0; color: var(--faint); }
-    #sort button.on { color: var(--ink); }
-    #sort button:hover { color: var(--gray); }
     #preset { display: flex; gap: 8px; align-items: center; padding: 0 18px 8px 22px;
       font-size: 11px; }
     #preset[hidden] { display: none; }
@@ -266,7 +264,11 @@
         <div id="status"></div>
         <div id="ai">
           <button id="ai-toggle">✦ ai off</button>
-          <input id="ai-key" type="password" placeholder="OpenRouter key — free at openrouter.ai" hidden />
+          <div id="ai-fields" hidden>
+            <input id="ai-key" type="password" placeholder="OpenRouter key — free at openrouter.ai" />
+            <input id="ai-model" list="ai-models" placeholder="model — blank picks a free one" />
+            <datalist id="ai-models"></datalist>
+          </div>
         </div>
         <div id="intent-line" hidden></div>
         <div id="facts" hidden></div>
@@ -277,18 +279,14 @@
         </div>
         <div id="list-tools" hidden>
           <input id="find" placeholder="filter…" />
-          <div id="sort">
-            <button data-s="score" class="on">influence</button>
-            <button data-s="year">newest</button>
-            <button data-s="momentum">rising</button>
-          </div>
         </div>
         <div id="preset" hidden>
-          <span>intent</span>
-          <button data-p="canon" class="on">canon</button>
-          <button data-p="catchup">catch-up</button>
-          <button data-p="pulse">pulse</button>
-          <button id="bridges" hidden>⋈ bridges</button>
+          <span>rank by</span>
+          <button data-p="canon" class="on" title="the classics — the committee-exam reading list">canon</button>
+          <button data-p="catchup" title="where the field went since your seeds">catch-up</button>
+          <button data-p="pulse" title="the newest work closest to your seeds">pulse</button>
+          <button data-p="newest" title="strict date order">newest</button>
+          <button id="bridges" hidden title="only papers citing several of your seeds">⋈ bridges</button>
         </div>
         <ol id="ranked"></ol>
         <div id="lenses" hidden></div>

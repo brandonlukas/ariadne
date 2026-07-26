@@ -1,5 +1,5 @@
 import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type Work } from './api.ts'
-import { getKey, inferIntent, setKey, whyForIntent } from './llm.ts'
+import { getKey, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
@@ -40,8 +40,8 @@ function saveStore() {
 }
 
 let seeds: Work[] = []
-let sortBy: 'score' | 'year' | 'momentum' = 'score'
-let preset: keyof typeof PRESETS = 'canon'
+let rank: keyof typeof PRESETS | 'newest' = 'canon'
+let preset: keyof typeof PRESETS = 'canon' // last weight-bearing choice; newest reuses it
 let bridgesOnly = false
 let needle = ''
 let flags: Record<string, 'star' | 'hide'> = {}
@@ -104,21 +104,29 @@ function status(msg: string, isError = false) {
 // --- ai: bring-your-own free key ---
 
 const aiKeyEl = $<HTMLInputElement>('ai-key')
+const aiModelEl = $<HTMLInputElement>('ai-model')
+const aiFields = $('ai-fields')
 const aiToggle = $<HTMLButtonElement>('ai-toggle')
-const aiLabel = () => (aiToggle.textContent = getKey() ? '✦ ai on' : '✦ ai off')
+$('ai-models').append(...MODELS.map((m) => Object.assign(el('option'), { value: m })))
+const aiLabel = () => {
+  aiToggle.textContent = getKey() ? '✦ ai on' : '✦ ai off'
+  aiToggle.classList.toggle('on', !!getKey())
+}
 aiToggle.onclick = () => {
-  aiKeyEl.hidden = !aiKeyEl.hidden
-  if (!aiKeyEl.hidden) {
+  aiFields.hidden = !aiFields.hidden
+  if (!aiFields.hidden) {
     aiKeyEl.value = getKey()
+    aiModelEl.value = getModel()
     aiKeyEl.focus()
   }
 }
 aiKeyEl.onchange = () => {
   setKey(aiKeyEl.value.trim())
-  aiKeyEl.hidden = true
+  aiFields.hidden = true
   aiLabel()
   maybeInferIntent()
 }
+aiModelEl.onchange = () => setModel(aiModelEl.value.trim())
 aiLabel()
 
 function renderIntent() {
@@ -270,11 +278,7 @@ function present() {
 function computeOrder() {
   if (!corpus) return
   const key =
-    sortBy === 'score'
-      ? (i: number) => metrics[i].score
-      : sortBy === 'year'
-        ? (i: number) => corpus!.works[i].year
-        : (i: number) => metrics[i].parts.momentum
+    rank === 'newest' ? (i: number) => corpus!.works[i].year : (i: number) => metrics[i].score
   order = corpus.works.map((_, i) => i).sort((a, b) => key(b) - key(a))
 }
 
@@ -290,37 +294,33 @@ function refreshViews() {
   applyFilter()
 }
 
-document.querySelectorAll<HTMLButtonElement>('#sort button').forEach((b) => {
-  b.onclick = () => {
-    sortBy = b.dataset.s as typeof sortBy
-    document.querySelectorAll('#sort button').forEach((x) => x.classList.toggle('on', x === b))
-    computeOrder()
-    refreshViews()
-  }
-})
-
 $<HTMLInputElement>('find').oninput = (e) => {
   needle = (e.target as HTMLInputElement).value.trim().toLowerCase()
   applyFilter()
 }
 
-document.querySelectorAll<HTMLButtonElement>('#preset button').forEach((b) => {
+document.querySelectorAll<HTMLButtonElement>('#preset button[data-p]').forEach((b) => {
   b.onclick = () => {
-    preset = b.dataset.p as typeof preset
-    document.querySelectorAll('#preset button').forEach((x) => x.classList.toggle('on', x === b))
+    rank = b.dataset.p as typeof rank
+    document.querySelectorAll('#preset button[data-p]').forEach((x) => x.classList.toggle('on', x === b))
     if (!corpus) return
-    metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset])
-    seedLinks = metrics.map((m) => m.seedLinks)
-    computeOrder()
-    const labeled = new Set(order.slice(0, 14))
-    renderer.restyle(
-      new Map(
-        corpus.works.map((w, i) => [
-          w.id,
-          { r: 3.5 + metrics[i].score * 14, labeled: labeled.has(i) || w.isSeed },
-        ]),
-      ),
-    )
+    if (rank !== 'newest' && rank !== preset) {
+      preset = rank
+      metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset])
+      seedLinks = metrics.map((m) => m.seedLinks)
+      computeOrder()
+      const labeled = new Set(order.slice(0, 14))
+      renderer.restyle(
+        new Map(
+          corpus.works.map((w, i) => [
+            w.id,
+            { r: 3.5 + metrics[i].score * 14, labeled: labeled.has(i) || w.isSeed },
+          ]),
+        ),
+      )
+    } else {
+      computeOrder()
+    }
     refreshViews()
   }
 })
