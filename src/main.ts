@@ -1,5 +1,5 @@
 import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type Work } from './api.ts'
-import { getKey, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
+import { getKey, getLastModel, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
@@ -109,8 +109,13 @@ const aiFields = $('ai-fields')
 const aiToggle = $<HTMLButtonElement>('ai-toggle')
 $('ai-models').append(...MODELS.map((m) => Object.assign(el('option'), { value: m })))
 const aiLabel = () => {
-  aiToggle.textContent = getKey() ? '✦ ai on' : '✦ ai off'
-  aiToggle.classList.toggle('on', !!getKey())
+  const on = !!getKey()
+  const model = getLastModel().split('/').pop()?.replace(':free', '')
+  aiToggle.replaceChildren(
+    el('span', 'dot'),
+    document.createTextNode(on ? (model ? `ai · ${model}` : 'ai on') : 'ai off'),
+  )
+  aiToggle.classList.toggle('on', on)
 }
 aiToggle.onclick = () => {
   aiFields.hidden = !aiFields.hidden
@@ -127,6 +132,16 @@ aiKeyEl.onchange = () => {
   maybeInferIntent()
 }
 aiModelEl.onchange = () => setModel(aiModelEl.value.trim())
+$('ai-off').onclick = () => {
+  setKey('')
+  setModel('')
+  intent = ''
+  aiWhy = {} // forgetting the key also forgets what it generated
+  saveStore()
+  renderIntent()
+  aiFields.hidden = true
+  aiLabel()
+}
 aiLabel()
 
 function renderIntent() {
@@ -144,6 +159,7 @@ async function maybeInferIntent() {
     intent = await inferIntent(corpus.works.filter((w) => w.isSeed))
     saveStore()
     renderIntent()
+    aiLabel() // now we know which model answered
   } catch (err) {
     line.textContent = `✦ ${err instanceof Error ? err.message : String(err)}`
   }
@@ -794,6 +810,7 @@ function openDetails(i: number) {
       .then((t) => {
         aiWhy[w.id] = t
         saveStore()
+        aiLabel()
         if (panelId === w.id) openDetails(i) // panel still on this paper — swap the text in
       })
       .catch(() => whyEl.querySelector('.seed-mark')?.remove())

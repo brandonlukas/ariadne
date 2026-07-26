@@ -4,12 +4,16 @@ import type { Metrics } from './metrics.ts'
 // bring-your-own key: OpenRouter's free tier, never shipped in the repo
 const KEY = 'ariadne:llm-key'
 const MODEL_KEY = 'ariadne:llm-model'
-// free models churn on OpenRouter — walk the list until one answers
+// free models churn on OpenRouter — walk the list until one answers.
+// gemma first: it doesn't reason, so it can't leak chain-of-thought into answers
 export const MODELS = [
-  'nvidia/nemotron-3-super-120b-a12b:free',
   'google/gemma-4-31b-it:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
   'openai/gpt-oss-20b:free',
 ]
+
+let lastModel = ''
+export const getLastModel = () => lastModel
 
 export const getKey = () => localStorage.getItem(KEY) ?? ''
 export const setKey = (k: string) => (k ? localStorage.setItem(KEY, k) : localStorage.removeItem(KEY))
@@ -27,6 +31,7 @@ async function ask(prompt: string): Promise<string> {
       body: JSON.stringify({
         model,
         max_tokens: 250,
+        reasoning: { exclude: true }, // keep chain-of-thought out of the answer
         messages: [
           {
             role: 'system',
@@ -42,8 +47,13 @@ async function ask(prompt: string): Promise<string> {
       err = new Error(`AI request failed (${res.status})`)
       continue
     }
-    const text = (await res.json()).choices?.[0]?.message?.content?.trim()
-    if (text) return text
+    const text = (await res.json()).choices?.[0]?.message?.content
+      ?.replace(/<think>[\s\S]*?<\/think>/gi, '') // some reasoners think in-band anyway
+      .trim()
+    if (text) {
+      lastModel = model
+      return text
+    }
     err = new Error('AI returned an empty answer')
   }
   throw err
@@ -60,6 +70,6 @@ export function inferIntent(seeds: Work[]): Promise<string> {
 
 export function whyForIntent(intent: string, w: Work, m: Metrics, seedTitles: string[]): Promise<string> {
   return ask(
-    `Reading intent: ${intent}\nSeed papers: ${seedTitles.join(' · ')}\n\nCandidate paper: ${w.title} (${w.year}), cited ${w.citedBy} times (${w.recentCites} in the last 3 years), directly linked to ${m.seedLinks} of the seeds.${w.abstract ? `\nAbstract: ${w.abstract.slice(0, 800)}` : ''}\n\nIn 2 short sentences, tell the researcher why this paper does or does not matter for their intent.`,
+    `Reading intent: ${intent}\nSeed papers: ${seedTitles.join(' · ')}\n\nCandidate paper: ${w.title} (${w.year}), cited ${w.citedBy} times (${w.recentCites} in the last 3 years), directly linked to ${m.seedLinks} of the seeds.${w.abstract ? `\nAbstract: ${w.abstract.slice(0, 800)}` : ''}\n\nIn 2 short sentences, tell the researcher why this paper does or does not matter for their intent. Output only those 2 sentences — no reasoning steps, no preamble.`,
   )
 }
