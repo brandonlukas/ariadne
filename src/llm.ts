@@ -3,33 +3,45 @@ import type { Metrics } from './metrics.ts'
 
 // bring-your-own key: OpenRouter's free tier, never shipped in the repo
 const KEY = 'ariadne:llm-key'
-const MODEL = 'moonshotai/kimi-k2:free'
+// free models churn on OpenRouter — walk the list until one answers
+const MODELS = [
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'google/gemma-4-31b-it:free',
+  'openai/gpt-oss-20b:free',
+]
 
 export const getKey = () => localStorage.getItem(KEY) ?? ''
 export const setKey = (k: string) => (k ? localStorage.setItem(KEY, k) : localStorage.removeItem(KEY))
 
 async function ask(prompt: string): Promise<string> {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getKey()}` },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 250,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You help a researcher survey scientific literature. Be specific, concrete, and terse. Never use preamble or hedging.',
-        },
-        { role: 'user', content: prompt },
-      ],
-    }),
-  })
-  if (!res.ok) throw new Error(`AI request failed (${res.status})`)
-  const j = await res.json()
-  const text = j.choices?.[0]?.message?.content?.trim()
-  if (!text) throw new Error('AI returned an empty answer')
-  return text
+  let err = new Error('AI request failed')
+  for (const model of MODELS) {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getKey()}` },
+      body: JSON.stringify({
+        model,
+        max_tokens: 250,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You help a researcher survey scientific literature. Be specific, concrete, and terse. Never use preamble or hedging.',
+          },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    })
+    if (res.status === 401) throw new Error('AI key rejected (401) — check your OpenRouter key')
+    if (!res.ok) {
+      err = new Error(`AI request failed (${res.status})`)
+      continue
+    }
+    const text = (await res.json()).choices?.[0]?.message?.content?.trim()
+    if (text) return text
+    err = new Error('AI returned an empty answer')
+  }
+  throw err
 }
 
 export function inferIntent(seeds: Work[]): Promise<string> {

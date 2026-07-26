@@ -135,10 +135,10 @@ async function maybeInferIntent() {
   try {
     intent = await inferIntent(corpus.works.filter((w) => w.isSeed))
     saveStore()
+    renderIntent()
   } catch (err) {
     line.textContent = `✦ ${err instanceof Error ? err.message : String(err)}`
   }
-  renderIntent()
 }
 
 // --- seeds ---
@@ -933,6 +933,7 @@ try {
     wovenKey = seedKey()
     renderChips()
     present()
+    maybeInferIntent() // a key may be set while the last session's intent isn't
   }
 } catch {} // corrupt store — start fresh
 
