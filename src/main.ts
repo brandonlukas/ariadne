@@ -746,6 +746,30 @@ $('export-md').onclick = () => {
   download('ariadne-corpus.md', lines.join('\n'), 'text/markdown')
 }
 
+$('export-bib').onclick = () => {
+  if (!corpus) return
+  const used = new Set<string>()
+  const entries = order
+    .filter((i) => flags[corpus!.works[i].id] !== 'hide')
+    .map((i) => {
+      const w = corpus!.works[i]
+      let key = `${(w.authors[0] ?? 'anon').split(' ').pop()}${w.year || ''}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+      while (used.has(key)) key += 'x'
+      used.add(key)
+      const fields = [
+        `  title = {${w.title.replace(/[{}]/g, '')}}`,
+        w.authors.length ? `  author = {${w.authors.join(' and ')}}` : '',
+        w.year ? `  year = {${w.year}}` : '',
+        w.venue ? `  journal = {${w.venue}}` : '',
+        w.doi ? `  doi = {${stripDoi(w.doi)}}` : '',
+      ].filter(Boolean)
+      return `@article{${key},\n${fields.join(',\n')}\n}`
+    })
+  download('ariadne-corpus.bib', entries.join('\n\n') + '\n', 'text/plain')
+}
+
 $('export-json').onclick = () => {
   if (!corpus) return
   const data = order
