@@ -4,13 +4,17 @@ export interface Metrics {
   parts: { foundational: number; bridge: number; momentum: number; relevance: number }
 }
 
-export type Weights = { f: number; b: number; m: number; r: number }
+// era: score multiplier for papers older than the earliest seed. Classics like
+// U-Net out-collect every new paper in absolute recent citations, so without
+// this gate they top "catch-up" too — but a paper that predates your seeds
+// cannot be a development since them.
+export type Weights = { f: number; b: number; m: number; r: number; era: number }
 // intent presets: canon = committee-exam classics, catchup = where the field
 // went since the seeds, pulse = the newest work closest to the seeds
 export const PRESETS: Record<'canon' | 'catchup' | 'pulse', Weights> = {
-  canon: { f: 0.35, b: 0.25, m: 0.2, r: 0.2 },
-  catchup: { f: 0.1, b: 0.15, m: 0.45, r: 0.3 },
-  pulse: { f: 0.05, b: 0.05, m: 0.4, r: 0.5 },
+  canon: { f: 0.35, b: 0.25, m: 0.2, r: 0.2, era: 1 },
+  catchup: { f: 0.1, b: 0.15, m: 0.45, r: 0.3, era: 0.5 },
+  pulse: { f: 0.05, b: 0.05, m: 0.4, r: 0.5, era: 0.4 },
 }
 
 export function pagerank(n: number, edges: [number, number][], d = 0.85, iters = 50): number[] {
@@ -102,10 +106,11 @@ const norm = (xs: number[]) => {
 }
 
 export function computeMetrics(
-  works: { recentCites: number; citedBy: number; isSeed: boolean }[],
+  works: { recentCites: number; citedBy: number; year: number; isSeed: boolean }[],
   edges: [number, number][],
   w: Weights = PRESETS.canon,
 ): Metrics[] {
+  const era = Math.min(Infinity, ...works.filter((wk) => wk.isSeed && wk.year > 0).map((wk) => wk.year))
   const n = works.length
   const pr = norm(pagerank(n, edges))
   const bt = norm(betweenness(n, edges))
@@ -133,9 +138,10 @@ export function computeMetrics(
       momentum: 0.6 * vel[i] + 0.4 * rise[i],
       relevance: rel[i],
     }
+    const raw =
+      w.f * parts.foundational + w.b * parts.bridge + w.m * parts.momentum + w.r * parts.relevance
     return {
-      score:
-        w.f * parts.foundational + w.b * parts.bridge + w.m * parts.momentum + w.r * parts.relevance,
+      score: works[i].year && works[i].year < era ? raw * w.era : raw,
       seedLinks: links[i],
       parts,
     }
