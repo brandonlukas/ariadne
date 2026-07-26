@@ -37,7 +37,6 @@ export function createRenderer(
 ) {
   const ctx = canvas.getContext('2d')!
   let nodes: GraphNode[] = []
-  let links: GraphLink[] = []
   let edgeIdx: [number, number][] = []
   let sim: Simulation<GraphNode, GraphLink> | null = null
   let byId = new Map<string, number>()
@@ -359,7 +358,6 @@ export function createRenderer(
     setData(newNodes: GraphNode[], edgePairs: [string, string][]) {
       nodes = newNodes
       byId = new Map(nodes.map((n, i) => [n.id, i]))
-      links = edgePairs.map(([s, t]) => ({ source: s, target: t }))
       edgeIdx = edgePairs.map(([s, t]) => [byId.get(s)!, byId.get(t)!])
       adj = nodes.map(() => new Set<number>())
       for (const [s, t] of edgeIdx) {
@@ -369,7 +367,7 @@ export function createRenderer(
       hovered = selected = external = null
       sim?.stop()
       sim = forceSimulation(nodes)
-        .force('link', forceLink<GraphNode, GraphLink>(links).id((d) => d.id).distance(45).strength(0.25))
+        .force('link', forceLink<GraphNode, GraphLink>(edgeIdx.map(([s, t]) => ({ source: s, target: t }))).distance(45).strength(0.25))
         .force('charge', forceManyBody().strength(-140))
         .force('x', forceX(0).strength(0.06))
         .force('y', forceY(0).strength(0.06))

@@ -1,8 +1,15 @@
-import { buildCorpus, resolveSeed, type Corpus, type Work } from './api.ts'
+import { buildCorpus, resolveSeed, stripDoi, type Corpus, type Work } from './api.ts'
 import { computeMetrics, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
+
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => {
+  const e = document.createElement(tag)
+  if (cls) e.className = cls
+  if (text) e.textContent = text
+  return e
+}
 
 const seedInput = $<HTMLInputElement>('seed-input')
 const addSeedBtn = $<HTMLButtonElement>('add-seed')
@@ -83,16 +90,11 @@ function status(msg: string, isError = false) {
 function renderChips() {
   chipsEl.replaceChildren(
     ...seeds.map((s, i) => {
-      const li = document.createElement('li')
-      const t = document.createElement('span')
-      t.className = 't'
-      t.textContent = s.title
+      const li = el('li')
+      const t = el('span', 't', s.title)
       t.title = s.title
-      const y = document.createElement('span')
-      y.className = 'y'
-      y.textContent = String(s.year)
-      const x = document.createElement('button')
-      x.textContent = '×'
+      const y = el('span', 'y', String(s.year))
+      const x = el('button', '', '×')
       x.onclick = () => {
         seeds.splice(i, 1)
         renderChips()
@@ -124,9 +126,9 @@ async function addSeed() {
   }
 }
 
-addSeedBtn.onclick = addSeed
-seedInput.onkeydown = (e) => {
-  if (e.key === 'Enter') addSeed()
+$<HTMLFormElement>('seed-form').onsubmit = (e) => {
+  e.preventDefault()
+  addSeed()
 }
 
 $<HTMLButtonElement>('demo').onclick = async (e) => {
@@ -187,7 +189,7 @@ function renderYears() {
   const bars = []
   for (let y = yearSpan[0]; y <= yearSpan[1]; y++) {
     const n = counts.get(y) ?? 0
-    const bar = document.createElement('div')
+    const bar = el('div')
     bar.dataset.y = String(y)
     bar.style.height = `${2 + Math.round(26 * (n / max))}px`
     bar.style.background = yearColor(y, yearSpan[0], yearSpan[1])
@@ -201,8 +203,7 @@ function renderYears() {
   const bins = yearSpan[1] - yearSpan[0] + 1
   ticksEl.style.width = `${bins * 5 - 1}px`
   for (let y = Math.ceil(yearSpan[0] / 10) * 10; y <= yearSpan[1]; y += 10) {
-    const t = document.createElement('span')
-    t.textContent = String(y)
+    const t = el('span', '', String(y))
     t.style.left = `${((y - yearSpan[0] + 0.5) / bins) * 100}%`
     ticksEl.append(t)
   }
@@ -213,13 +214,9 @@ const readoutEl = $('brush-readout')
 function updateReadout(hoverYear?: number) {
   if (!corpus) return
   const pill = (range: string, n: number, clearable: boolean) => {
-    const b = document.createElement('b')
-    b.textContent = range
-    readoutEl.replaceChildren(b, document.createTextNode(`${n} paper${n === 1 ? '' : 's'}`))
+    readoutEl.replaceChildren(el('b', '', range), document.createTextNode(`${n} paper${n === 1 ? '' : 's'}`))
     if (clearable) {
-      const x = document.createElement('span')
-      x.className = 'x'
-      x.textContent = '×'
+      const x = el('span', 'x', '×')
       x.onclick = () => applyBrush(null)
       readoutEl.append(x)
     }
@@ -303,10 +300,8 @@ function renderFacts() {
   if (!corpus) return
   const works = corpus.works
   const factsEl = $('facts')
-  const b = document.createElement('b')
-  b.textContent = 'span — '
   const recent = Math.round((works.filter((w) => w.year >= new Date().getFullYear() - 2).length / works.length) * 100)
-  factsEl.replaceChildren(b, document.createTextNode(`${yearSpan[0]}–${yearSpan[1]} · ${recent}% from the last 3 years`))
+  factsEl.replaceChildren(el('b', '', 'span — '), document.createTextNode(`${yearSpan[0]}–${yearSpan[1]} · ${recent}% from the last 3 years`))
   factsEl.hidden = false
 }
 
@@ -326,22 +321,16 @@ function renderLenses() {
   const max = entries[0]?.[1] ?? 1
   lensesEl.replaceChildren(
     ...entries.map(([name, n]) => {
-      const row = document.createElement('div')
-      row.className = 'row'
+      const row = el('div', 'row')
       row.dataset.kind = kind
       row.dataset.name = name
-      const nm = document.createElement('span')
-      nm.className = 'n'
-      nm.textContent = name
+      const nm = el('span', 'n', name)
       nm.title = name
-      const track = document.createElement('span')
-      track.className = 'track'
-      const fill = document.createElement('i')
+      const track = el('span', 'track')
+      const fill = el('i')
       fill.style.width = `${Math.round((n / max) * 100)}%`
       track.append(fill)
-      const em = document.createElement('em')
-      em.textContent = String(n)
-      row.append(nm, track, em)
+      row.append(nm, track, el('em', '', String(n)))
       row.onclick = () => {
         lens = lens?.kind === kind && lens.name === name ? null : { kind, name }
         applyFilter()
@@ -418,38 +407,19 @@ function renderList() {
   rankedEl.replaceChildren(
     ...order.map((i, rank) => {
       const w = works[i]
-      const li = document.createElement('li')
+      const li = el('li')
       li.dataset.id = w.id
       li.tabIndex = 0
-      const rankEl = document.createElement('span')
-      rankEl.className = 'rank'
-      rankEl.textContent = String(rank + 1)
-      const body = document.createElement('div')
-      body.className = 'body'
-      const title = document.createElement('div')
-      title.className = 'title'
-      title.textContent = w.title
-      const meta = document.createElement('div')
-      meta.className = 'meta'
-      meta.textContent = `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`
-      if (w.isSeed) {
-        const mark = document.createElement('span')
-        mark.className = 'seed-mark'
-        mark.textContent = ' — seed'
-        meta.append(mark)
-      }
-      body.append(title, meta)
+      const body = el('div', 'body')
+      const meta = el('div', 'meta', `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
+      if (w.isSeed) meta.append(el('span', 'seed-mark', ' — seed'))
+      body.append(el('div', 'title', w.title), meta)
       if (w.venue) {
-        const venue = document.createElement('div')
-        venue.className = 'venue'
-        venue.textContent = w.venue
+        const venue = el('div', 'venue', w.venue)
         venue.title = w.venue
         body.append(venue)
       }
-      const sc = document.createElement('span')
-      sc.className = 'sc'
-      sc.textContent = metrics[i].score.toFixed(2)
-      li.append(rankEl, body, sc)
+      li.append(el('span', 'rank', String(rank + 1)), body, el('span', 'sc', metrics[i].score.toFixed(2)))
       li.onmouseenter = () => renderer.highlight(w.id)
       li.onmouseleave = () => renderer.highlight(null)
       li.onclick = () => {
@@ -516,7 +486,7 @@ function lookupFigures(doi: string): Promise<string[]> {
   return p
 }
 
-const strippedDoi = (w: Work) => w.doi?.replace(/^https?:\/\/(dx\.)?doi\.org\//, '') ?? ''
+const strippedDoi = (w: Work) => (w.doi ? stripDoi(w.doi) : '')
 
 // candidates are tried in order until one loads
 function figureUrls(w: Work): string[] {
@@ -550,11 +520,9 @@ function renderGallery() {
   $('gallery').replaceChildren(
     ...order.map((i) => {
       const w = corpus!.works[i]
-      const card = document.createElement('div')
-      card.className = 'card'
+      const card = el('div', 'card')
       card.dataset.id = w.id
-      const fig = document.createElement('div')
-      fig.className = 'fig'
+      const fig = el('div', 'fig')
       const nofig = () => {
         card.classList.remove('pending')
         card.classList.add('nofig')
@@ -565,7 +533,7 @@ function renderGallery() {
         card.classList.add('pending')
         lookupFigures(strippedDoi(w)).then((urls) => {
           if (!urls.length) return nofig()
-          const img = document.createElement('img')
+          const img = el('img')
           img.alt = ''
           img.loading = 'lazy'
           let n = 0
@@ -576,7 +544,7 @@ function renderGallery() {
         })
       } else if (srcs.length) {
         card.classList.add('pending')
-        const img = document.createElement('img')
+        const img = el('img')
         img.alt = ''
         img.loading = 'lazy'
         // walk the candidates, then walk them once more — a burst of loads can
@@ -603,23 +571,11 @@ function renderGallery() {
         card.classList.add('nofig')
         fig.append(document.createTextNode('no figure'))
       }
-      const t = document.createElement('div')
-      t.className = 't'
-      t.textContent = w.title
-      const m = document.createElement('div')
-      m.className = 'm'
-      m.textContent = `${rankOf.get(i)} · ${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`
-      if (w.isSeed) {
-        const s = document.createElement('span')
-        s.className = 'seed'
-        s.textContent = ' — seed'
-        m.append(s)
-      }
-      card.append(fig, t, m)
+      const m = el('div', 'm', `${rankOf.get(i)} · ${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
+      if (w.isSeed) m.append(el('span', 'seed', ' — seed'))
+      card.append(fig, el('div', 't', w.title), m)
       if (w.venue) {
-        const v = document.createElement('div')
-        v.className = 'v'
-        v.textContent = w.venue
+        const v = el('div', 'v', w.venue)
         v.title = w.venue
         card.append(v)
       }
@@ -651,55 +607,31 @@ function openDetails(i: number) {
   rankedEl.querySelector<HTMLElement>(`li[data-id="${w.id}"]`)?.scrollIntoView({ block: 'nearest' })
   renderer.select(w.id)
 
-  panelBody.replaceChildren()
-  const h2 = document.createElement('h2')
-  h2.textContent = w.title
-  const byline = document.createElement('div')
-  byline.className = 'byline'
-  byline.textContent = w.authors.slice(0, 6).join(', ') + (w.authors.length > 6 ? ' et al.' : '')
-  const date = document.createElement('div')
-  date.className = 'date'
-  date.textContent = `${w.venue ? w.venue + ' · ' : ''}${w.year} · cited ${w.citedBy.toLocaleString()} times`
-  panelBody.append(h2, byline, date)
-  if (w.abstract) {
-    const d = document.createElement('p')
-    d.className = 'desc'
-    d.textContent = w.abstract
-    panelBody.append(d)
-  }
-  const whyEl = document.createElement('p')
-  whyEl.className = 'why'
-  const b = document.createElement('b')
-  b.textContent = 'why it matters'
-  whyEl.append(b, document.createTextNode(' — ' + why(w, m, seedLinks[i])))
+  panelBody.replaceChildren(
+    el('h2', '', w.title),
+    el('div', 'byline', w.authors.slice(0, 6).join(', ') + (w.authors.length > 6 ? ' et al.' : '')),
+    el('div', 'date', `${w.venue ? w.venue + ' · ' : ''}${w.year} · cited ${w.citedBy.toLocaleString()} times`),
+  )
+  if (w.abstract) panelBody.append(el('p', 'desc', w.abstract))
+  const whyEl = el('p', 'why')
+  whyEl.append(el('b', '', 'why it matters'), document.createTextNode(' — ' + why(w, m, seedLinks[i])))
   panelBody.append(whyEl)
   for (const [name, v] of Object.entries(m.parts)) {
-    const row = document.createElement('div')
-    row.className = 'meter'
-    const label = document.createElement('span')
-    label.textContent = name
-    const track = document.createElement('div')
-    track.className = 'track'
-    const fill = document.createElement('i')
+    const row = el('div', 'meter')
+    const track = el('div', 'track')
+    const fill = el('i')
     fill.style.width = `${Math.round(v * 100)}%`
     track.append(fill)
-    const val = document.createElement('em')
-    val.textContent = v.toFixed(2)
-    row.append(label, track, val)
+    row.append(el('span', '', name), track, el('em', '', v.toFixed(2)))
     panelBody.append(row)
   }
-  const pills = document.createElement('div')
-  pills.className = 'pills'
-  const open = document.createElement('a')
-  open.className = 'pill'
+  const pills = el('div', 'pills')
+  const open = el('a', 'pill', 'open paper ↗')
   open.href = w.doi ?? `https://openalex.org/${w.id}`
   open.target = '_blank'
-  open.textContent = 'open paper ↗'
   pills.append(open)
   if (!seeds.some((s) => s.id === w.id)) {
-    const grow = document.createElement('button')
-    grow.className = 'pill'
-    grow.textContent = 'add as seed + reweave'
+    const grow = el('button', 'pill', 'add as seed + reweave')
     grow.onclick = () => {
       seeds.push({ ...w, isSeed: false })
       renderChips()
@@ -714,7 +646,7 @@ function openDetails(i: number) {
 // --- export ---
 
 function download(name: string, text: string, type: string) {
-  const a = document.createElement('a')
+  const a = el('a')
   a.href = URL.createObjectURL(new Blob([text], { type }))
   a.download = name
   a.click()

@@ -26,6 +26,7 @@ const MAX_NODES = 200
 const CITERS_PER_SEED = 50
 
 const short = (url: string) => url.slice(url.lastIndexOf('/') + 1)
+export const stripDoi = (s: string) => s.replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
 
 async function getJson(path: string): Promise<any> {
   const url = `${API}${path}${path.includes('?') ? '&' : '?'}mailto=${MAILTO}`
@@ -79,7 +80,7 @@ function parseWork(j: any): Work {
 }
 
 export async function resolveSeed(input: string): Promise<Work> {
-  const q = input.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
+  const q = stripDoi(input.trim())
   if (/^10\.\d{4,}\//.test(q)) {
     return parseWork(await getJson(`/works/doi:${q}?select=${SELECT}`))
   }
