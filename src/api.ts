@@ -79,14 +79,28 @@ function parseWork(j: any): Work {
   }
 }
 
+const arxOf = (q: string) =>
+  q.match(/^(?:arxiv:)?(\d{4}\.\d{4,5})(?:v\d+)?$/i)?.[1] ??
+  q.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5})/i)?.[1]
+
+// DOI, arXiv id/URL, or OpenAlex id — anything resolvable without a fuzzy search
+export const idLike = (q: string) =>
+  !!arxOf(q) || /^10\.\d{4,}\//.test(stripDoi(q.trim())) || /^W\d+$/i.test(q.trim())
+
 export async function resolveSeed(input: string): Promise<Work> {
   const q = stripDoi(input.trim())
-  if (/^10\.\d{4,}\//.test(q)) {
-    return parseWork(await getJson(`/works/doi:${q}?select=${SELECT}`))
-  }
-  const j = await getJson(`/works?search=${encodeURIComponent(q)}&per-page=1&select=${SELECT}`)
-  if (!j.results?.length) throw new Error(`No paper found for “${input}”`)
-  return parseWork(j.results[0])
+  const arx = arxOf(q)
+  if (arx) return parseWork(await getJson(`/works/doi:10.48550/arXiv.${arx}?select=${SELECT}`))
+  if (/^10\.\d{4,}\//.test(q)) return parseWork(await getJson(`/works/doi:${q}?select=${SELECT}`))
+  if (/^W\d+$/i.test(q)) return parseWork(await getJson(`/works/${q}?select=${SELECT}`))
+  const results = await searchSeeds(q, 1)
+  if (!results.length) throw new Error(`No paper found for “${input}”`)
+  return results[0]
+}
+
+export async function searchSeeds(q: string, n: number): Promise<Work[]> {
+  const j = await getJson(`/works?search=${encodeURIComponent(q)}&per-page=${n}&select=${SELECT}`)
+  return (j.results ?? []).map(parseWork)
 }
 
 export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void): Promise<Corpus> {
