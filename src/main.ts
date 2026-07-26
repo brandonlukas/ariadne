@@ -16,13 +16,14 @@ const panelBody = $('panel-body')
 // ink ramp on white — older papers fade, newer ones darken; seeds carry the thread
 const INK_RAMP = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3934', '#1c1b18']
 
-const HINTS: Record<ViewMode, string> = {
+const HINTS: Record<ViewMode | 'gallery', string> = {
   constellation: 'drag to pan · scroll to zoom · touch a paper to find its thread',
   circle: 'rings — steps outward from your seeds · touch a paper to find its thread',
   sphere: 'drag to rotate · touch a paper to find its thread',
+  gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v2' // v2: works gained venue
+const STORE = 'ariadne:weave:v5' // bump when the cached Work shape changes
 
 let seeds: Work[] = []
 let wovenKey = '' // seed set of the last successful weave — identical set = nothing to refetch
@@ -58,10 +59,17 @@ $('back').onclick = () => {
 
 document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
   b.onclick = () => {
-    const m = b.dataset.m as ViewMode
+    const m = b.dataset.m as ViewMode | 'gallery'
     document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('on', x === b))
     $('hint').textContent = HINTS[m]
-    renderer.setMode(m)
+    $('gallery').hidden = m !== 'gallery'
+    // build the wall on first open: lazy images never load while the container is hidden
+    if (m === 'gallery' && galleryStale) {
+      galleryStale = false
+      renderGallery()
+      applyFilter()
+    }
+    if (m !== 'gallery') renderer.setMode(m)
   }
 })
 
@@ -154,6 +162,8 @@ function present() {
   order = corpus.works.map((_, i) => i).sort((a, b) => metrics[b].score - metrics[a].score)
   renderList()
   renderGraph()
+  $('gallery').replaceChildren()
+  galleryStale = true
   renderYears()
   renderFacts()
   $('tabs').hidden = false
@@ -247,6 +257,8 @@ function applyFilter() {
     const el = li as HTMLElement
     el.classList.toggle('ghost', vis !== null && !vis.has(el.dataset.id!))
   }
+  for (const card of document.querySelectorAll<HTMLElement>('#gallery .card'))
+    card.classList.toggle('ghost', vis !== null && !vis.has(card.dataset.id!))
   for (const row of document.querySelectorAll<HTMLElement>('#lenses .row'))
     row.classList.toggle('lit', lens !== null && row.dataset.kind === lens.kind && row.dataset.name === lens.name)
   updateReadout()
@@ -427,6 +439,13 @@ function renderList() {
         meta.append(mark)
       }
       body.append(title, meta)
+      if (w.venue) {
+        const venue = document.createElement('div')
+        venue.className = 'venue'
+        venue.textContent = w.venue
+        venue.title = w.venue
+        body.append(venue)
+      }
       const sc = document.createElement('span')
       sc.className = 'sc'
       sc.textContent = metrics[i].score.toFixed(2)
@@ -444,6 +463,102 @@ function renderList() {
         }
       }
       return li
+    }),
+  )
+}
+
+// --- gallery: figure 1 from open-access hosts, derived from the paper's own ids ---
+
+// PMC and NCBI both hotlink-block their images, so publisher CDNs are the only
+// browser-loadable sources. Each is a pure URL derivation — no API calls.
+const PLOS_JOURNALS: Record<string, string> = {
+  pone: 'plosone',
+  pbio: 'plosbiology',
+  pmed: 'plosmedicine',
+  pcbi: 'ploscompbiol',
+  pgen: 'plosgenetics',
+  ppat: 'plospathogens',
+  pntd: 'plosntds',
+}
+
+// candidates are tried in order until one loads
+function figureUrls(w: Work): string[] {
+  if (w.arxivId) return [`https://ar5iv.labs.arxiv.org/html/${w.arxivId}/assets/x1.png`]
+  const doi = w.doi?.replace(/^https?:\/\/(dx\.)?doi\.org\//, '') ?? ''
+  // Springer Nature (Nature family, BMC, …): 10.1038/s41586-021-03819-2 -> 41586_2021_3819_Fig1
+  // Nature serves .png, Nature Communications .jpg, so try both
+  const s = doi.match(/^10\.\d+\/s(\d+)-(\d+)-(\d+)-/i)
+  if (s) {
+    const base = `https://media.springernature.com/lw685/springer-static/image/art%3A${encodeURIComponent(doi)}/MediaObjects/${s[1]}_${2000 + Number(s[2])}_${Number(s[3])}_Fig1_HTML`
+    return [`${base}.png`, `${base}.jpg`]
+  }
+  const p = doi.match(/^10\.1371\/journal\.(\w+)\./i)
+  if (p && PLOS_JOURNALS[p[1]])
+    return [`https://journals.plos.org/${PLOS_JOURNALS[p[1]]}/article/figure/image?size=medium&id=${doi}.g001`]
+  return []
+}
+
+let galleryStale = true
+
+function renderGallery() {
+  if (!corpus) return
+  const rankOf = new Map(order.map((idx, r) => [idx, r + 1]))
+  // influence order; CSS reflows figureless cards to the end as they resolve
+  $('gallery').replaceChildren(
+    ...order.map((i) => {
+      const w = corpus!.works[i]
+      const card = document.createElement('div')
+      card.className = 'card'
+      card.dataset.id = w.id
+      const fig = document.createElement('div')
+      fig.className = 'fig'
+      const nofig = () => {
+        card.classList.remove('pending')
+        card.classList.add('nofig')
+        fig.replaceChildren(document.createTextNode('no figure'))
+      }
+      const srcs = figureUrls(w)
+      if (srcs.length) {
+        card.classList.add('pending')
+        const img = document.createElement('img')
+        img.alt = ''
+        img.loading = 'lazy'
+        let next = 0
+        const tryNext = () => (next < srcs.length ? (img.src = srcs[next++]) : nofig())
+        img.onerror = tryNext
+        img.onload = () => {
+          // ar5iv answers 200 with a 325x400 "no image available" placeholder
+          if (img.naturalWidth === 325 && img.naturalHeight === 400) nofig()
+          else card.classList.remove('pending')
+        }
+        tryNext()
+        fig.append(img)
+      } else {
+        card.classList.add('nofig')
+        fig.append(document.createTextNode('no figure'))
+      }
+      const t = document.createElement('div')
+      t.className = 't'
+      t.textContent = w.title
+      const m = document.createElement('div')
+      m.className = 'm'
+      m.textContent = `${rankOf.get(i)} · ${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`
+      if (w.isSeed) {
+        const s = document.createElement('span')
+        s.className = 'seed'
+        s.textContent = ' — seed'
+        m.append(s)
+      }
+      card.append(fig, t, m)
+      if (w.venue) {
+        const v = document.createElement('div')
+        v.className = 'v'
+        v.textContent = w.venue
+        v.title = w.venue
+        card.append(v)
+      }
+      card.onclick = () => openDetails(i)
+      return card
     }),
   )
 }
@@ -478,7 +593,7 @@ function openDetails(i: number) {
   byline.textContent = w.authors.slice(0, 6).join(', ') + (w.authors.length > 6 ? ' et al.' : '')
   const date = document.createElement('div')
   date.className = 'date'
-  date.textContent = `${w.year} · cited ${w.citedBy.toLocaleString()} times`
+  date.textContent = `${w.venue ? w.venue + ' · ' : ''}${w.year} · cited ${w.citedBy.toLocaleString()} times`
   panelBody.append(h2, byline, date)
   if (w.abstract) {
     const d = document.createElement('p')
@@ -554,6 +669,7 @@ $('export-md').onclick = () => {
     const m = metrics[i]
     lines.push(`## ${rank + 1}. ${w.title} (${w.year})${w.isSeed ? ' — SEED' : ''}`)
     lines.push(`- Authors: ${w.authors.slice(0, 8).join(', ')}${w.authors.length > 8 ? ' et al.' : ''}`)
+    if (w.venue) lines.push(`- Published in: ${w.venue}`)
     if (w.doi) lines.push(`- DOI: ${w.doi}`)
     lines.push(`- Score: ${m.score.toFixed(2)} (foundational ${m.parts.foundational.toFixed(2)}, bridge ${m.parts.bridge.toFixed(2)}, momentum ${m.parts.momentum.toFixed(2)}, relevance ${m.parts.relevance.toFixed(2)})`)
     lines.push(`- Why it matters: ${why(w, m, seedLinks[i])}`)

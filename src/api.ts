@@ -5,6 +5,7 @@ export interface Work {
   citedBy: number
   authors: string[]
   venue: string | null
+  arxivId: string | null
   refs: string[]
   recentCites: number
   doi: string | null
@@ -20,7 +21,7 @@ export interface Corpus {
 const API = 'https://api.openalex.org'
 const MAILTO = 'brandonlukas@gmail.com'
 const SELECT =
-  'id,display_name,publication_year,cited_by_count,authorships,primary_location,referenced_works,counts_by_year,doi,abstract_inverted_index'
+  'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index'
 const MAX_NODES = 200
 const CITERS_PER_SEED = 50
 
@@ -46,6 +47,16 @@ function deInvert(inv: Record<string, number[]> | null): string | null {
   return words.join(' ')
 }
 
+function findArxivId(j: any): string | null {
+  const urls: (string | null)[] = (j.locations ?? []).flatMap((l: any) => [l.landing_page_url, l.pdf_url])
+  urls.push(j.doi ?? null)
+  for (const u of urls) {
+    const m = u?.match(/arxiv\.org\/(?:abs|pdf)\/([0-9]+\.[0-9]+(?:v[0-9]+)?)|10\.48550\/arxiv\.([0-9]+\.[0-9]+)/i)
+    if (m) return m[1] ?? m[2]
+  }
+  return null
+}
+
 function parseWork(j: any): Work {
   const thisYear = new Date().getFullYear()
   const recentCites = (j.counts_by_year ?? [])
@@ -58,6 +69,7 @@ function parseWork(j: any): Work {
     citedBy: j.cited_by_count ?? 0,
     authors: (j.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
     venue: j.primary_location?.source?.display_name ?? null,
+    arxivId: findArxivId(j),
     refs: (j.referenced_works ?? []).map(short),
     recentCites,
     doi: j.doi ?? null,
