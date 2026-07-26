@@ -101,22 +101,31 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
     const s = seeds[i]
     onStatus(`Pulling citations ${i + 1}/${seeds.length}: ${s.title.slice(0, 48)}…`)
     for (const r of s.refs) bump(r)
-    const j = await getJson(
-      `/works?filter=cites:${s.id}&per-page=${CITERS_PER_SEED}&sort=cited_by_count:desc&select=${SELECT}`,
-    )
-    for (const raw of j.results ?? []) {
-      const w = parseWork(raw)
-      if (!pool.has(w.id)) pool.set(w.id, w)
-      bump(w.id)
+    // two sorts: top-cited alone buries recent work before ranking ever sees it
+    const citers = new Set<string>()
+    for (const sort of ['cited_by_count:desc', 'publication_date:desc']) {
+      const j = await getJson(
+        `/works?filter=cites:${s.id}&per-page=${CITERS_PER_SEED}&sort=${sort}&select=${SELECT}`,
+      )
+      for (const raw of j.results ?? []) {
+        const w = parseWork(raw)
+        if (!pool.has(w.id)) pool.set(w.id, w)
+        citers.add(w.id)
+      }
     }
+    for (const id of citers) bump(id)
   }
 
   const seedIds = new Set(seeds.map((s) => s.id))
+  // tiebreak on citations per year, not lifetime count — else age wins every tie
+  const thisYear = new Date().getFullYear()
+  const perYear = (id: string) => {
+    const w = pool.get(id)
+    return w ? w.citedBy / Math.max(1, thisYear - w.year + 1) : 0
+  }
   const candidates = [...links.entries()]
     .filter(([id]) => !seedIds.has(id))
-    .sort(
-      (a, b) => b[1] - a[1] || (pool.get(b[0])?.citedBy ?? 0) - (pool.get(a[0])?.citedBy ?? 0),
-    )
+    .sort((a, b) => b[1] - a[1] || perYear(b[0]) - perYear(a[0]))
     .slice(0, MAX_NODES - seeds.length)
     .map(([id]) => id)
 
