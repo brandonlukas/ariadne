@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ariadne</title>
+  <style>
+    :root {
+      --paper: #ffffff;
+      --ink: #1b1a17;
+      --gray: #6e6c65;
+      --faint: #a6a49c;
+      --hairline: #e9e8e4;
+      --hover: #f6f5f2;
+      --sel: #f0efeb;
+      --thread: #b41f3a;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--paper); color: var(--ink);
+      font: 13px/1.5 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    #frame { display: flex; flex-direction: column; height: 100vh; }
+
+    nav {
+      display: flex; align-items: baseline; gap: 14px;
+      padding: 15px 24px 13px; border-bottom: 1px solid var(--hairline);
+      flex-shrink: 0;
+    }
+    .wordmark { font-size: 14px; letter-spacing: 0.02em; }
+    .wordmark i { font-style: normal; color: var(--thread); }
+    nav .tagline { color: var(--faint); font-size: 12px; }
+    nav .right { margin-left: auto; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+    nav .right b { font-weight: 400; color: var(--gray); }
+
+    #main { flex: 1; display: flex; min-height: 0; }
+
+    #sidebar { width: 316px; flex-shrink: 0; display: flex; flex-direction: column;
+      border-right: 1px solid var(--hairline); }
+    #seed-form { display: flex; gap: 8px; padding: 18px 18px 0 22px; }
+    #seed-input { flex: 1; background: var(--paper); border: 1px solid var(--hairline);
+      border-radius: 999px; padding: 8px 14px; color: var(--ink); font: inherit; outline: none; }
+    #seed-input::placeholder { color: var(--faint); }
+    #seed-input:focus { border-color: var(--faint); }
+    button { font: inherit; cursor: pointer; }
+    #add-seed { background: var(--paper); color: var(--ink); border: 1px solid var(--hairline);
+      border-radius: 999px; padding: 0 16px; }
+    #add-seed:hover { border-color: var(--faint); }
+    #seed-chips { list-style: none; margin: 10px 0 0; padding: 0 18px 0 22px; display: flex;
+      flex-direction: column; gap: 5px; }
+    #seed-chips li { display: flex; align-items: center; gap: 8px;
+      border: 1px solid var(--hairline);
+      border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+    #seed-chips li::before { content: ''; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--thread); flex-shrink: 0; }
+    #seed-chips .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #seed-chips .y { color: var(--faint); }
+    #seed-chips button { background: none; border: none; color: var(--faint); padding: 0 2px; font-size: 14px; }
+    #seed-chips button:hover { color: var(--ink); }
+    #weave { margin: 12px 18px 0 22px; padding: 9px; background: var(--thread); color: #fff;
+      border: none; border-radius: 999px; letter-spacing: 0.01em; }
+    #weave:hover:not(:disabled) { background: #c72a48; }
+    #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
+    #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
+    #status.error { color: var(--thread); }
+
+    #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
+      border-top: 1px solid var(--hairline); }
+    #ranked li { display: flex; gap: 12px; padding: 11px 18px 11px 22px;
+      border-bottom: 1px solid var(--hairline); cursor: pointer; }
+    #ranked li:hover, #ranked li.hover { background: var(--hover); }
+    #ranked li.active { background: var(--sel); }
+    #ranked .rank { color: var(--faint); font-size: 11px; padding-top: 2px; min-width: 16px;
+      text-align: right; font-variant-numeric: tabular-nums; }
+    #ranked .body { flex: 1; min-width: 0; }
+    #ranked .title { font-size: 12.5px; line-height: 1.4; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    #ranked .meta { font-size: 11px; color: var(--gray); margin-top: 2px; }
+    #ranked .seed-mark { color: var(--thread); }
+    #ranked .sc { color: var(--faint); font-size: 11px; padding-top: 2px;
+      font-variant-numeric: tabular-nums; }
+
+    #stage { flex: 1; position: relative; overflow: hidden; min-width: 0; }
+    #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+    #modes { position: absolute; top: 16px; left: 20px; display: none; gap: 16px; }
+    #modes button { background: none; border: none; padding: 0; color: var(--faint);
+      letter-spacing: 0.01em; }
+    #modes button.on { color: var(--ink); }
+    #modes button:hover { color: var(--gray); }
+
+    #legend { position: absolute; left: 20px; bottom: 16px; font-size: 11px; color: var(--gray);
+      display: none; align-items: center; gap: 8px; pointer-events: none; }
+    #legend .ramp { width: 84px; height: 6px; border-radius: 3px;
+      background: linear-gradient(to right, #a8a494, #69665b, #1c1b18); }
+    #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--thread); margin: 0 3px 0 10px; }
+    #hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      font-size: 11px; color: var(--faint); pointer-events: none; white-space: nowrap;
+      display: none; }
+
+    #toolbar { position: absolute; right: 16px; top: 14px; display: none; gap: 8px; }
+    .pill { border: 1px solid var(--hairline); background: var(--paper); border-radius: 999px;
+      padding: 7px 15px; font-size: 12px; color: var(--ink); text-decoration: none; }
+    .pill:hover { border-color: var(--faint); }
+
+    #empty { position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: center; color: var(--faint); font-size: 13px; text-align: center;
+      pointer-events: none; line-height: 1.8; }
+    #stage.woven #modes, #stage.woven #legend, #stage.woven #toolbar { display: flex; }
+    #stage.woven #hint { display: block; }
+    #stage.woven #empty { display: none; }
+
+    #panel { position: absolute; top: 0; right: 0; bottom: 0; width: 384px;
+      background: var(--paper); border-left: 1px solid var(--hairline);
+      padding: 22px 30px; overflow-y: auto;
+      transform: translateX(102%); transition: transform 0.28s cubic-bezier(.2,.7,.2,1); }
+    #panel.open { transform: none; box-shadow: -24px 0 48px rgba(27,26,23,0.05); }
+    @media (prefers-reduced-motion: reduce) { #panel { transition: none; } }
+    #back { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--hairline);
+      background: var(--paper); color: var(--ink); font-size: 14px;
+      margin-bottom: 18px; display: flex; align-items: center; justify-content: center; }
+    #back:hover { border-color: var(--faint); }
+    #panel h2 { margin: 0 0 6px; font-size: 21px; line-height: 1.3; font-weight: 500;
+      letter-spacing: -0.01em; text-wrap: balance; }
+    #panel .byline { color: var(--gray); font-size: 13px; }
+    #panel .date { color: var(--gray); font-size: 13px; margin-bottom: 18px; }
+    #panel .desc { font-size: 13.5px; line-height: 1.65; color: #3d3b35; margin: 0 0 18px;
+      max-height: 220px; overflow-y: auto; }
+    #panel .why { font-size: 13px; line-height: 1.6; color: var(--gray); margin: 0 0 22px; }
+    #panel .why b { font-weight: 400; color: var(--thread); }
+    .meter { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 11px;
+      color: var(--gray); }
+    .meter span { width: 88px; }
+    .meter .track { flex: 1; height: 2px; background: var(--hairline); }
+    .meter .track i { display: block; height: 100%; background: var(--ink); }
+    .meter em { font-style: normal; width: 32px; text-align: right; color: var(--faint);
+      font-variant-numeric: tabular-nums; }
+    #panel .pills { display: flex; gap: 8px; margin-top: 22px; }
+    button:focus-visible, a:focus-visible, li:focus-visible, input:focus-visible {
+      outline: 2px solid var(--thread); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div id="frame">
+    <nav>
+      <span class="wordmark">ariadne<i>.</i></span>
+      <span class="tagline">a thread through the literature</span>
+      <span class="right" id="counts"></span>
+    </nav>
+    <div id="main">
+      <aside id="sidebar">
+        <div id="seed-form">
+          <input id="seed-input" placeholder="DOI or paper title…" />
+          <button id="add-seed">add</button>
+        </div>
+        <ul id="seed-chips"></ul>
+        <button id="weave" disabled>weave the graph</button>
+        <div id="status"></div>
+        <ol id="ranked"></ol>
+      </aside>
+      <main id="stage">
+        <canvas id="canvas"></canvas>
+        <div id="empty">Add one or more seed papers,<br />then weave the graph.</div>
+        <div id="modes">
+          <button data-m="constellation" class="on">constellation</button>
+          <button data-m="circle">circle</button>
+          <button data-m="sphere">sphere</button>
+        </div>
+        <div id="legend">
+          <span id="year-min"></span><span class="ramp"></span><span id="year-max"></span>
+          <span class="dot"></span><span>seed</span>
+          <span style="margin-left:10px">size — influence</span>
+        </div>
+        <div id="hint"></div>
+        <div id="toolbar">
+          <button class="pill" id="export-md">export .md</button>
+          <button class="pill" id="export-json">export .json</button>
+        </div>
+        <div id="panel">
+          <button id="back" aria-label="close">←</button>
+          <div id="panel-body"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,343 @@
+import { buildCorpus, resolveSeed, type Corpus, type Work } from './api.ts'
+import { computeMetrics, type Metrics } from './metrics.ts'
+import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
+
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
+
+const seedInput = $<HTMLInputElement>('seed-input')
+const addSeedBtn = $<HTMLButtonElement>('add-seed')
+const chipsEl = $<HTMLUListElement>('seed-chips')
+const weaveBtn = $<HTMLButtonElement>('weave')
+const statusEl = $('status')
+const rankedEl = $<HTMLOListElement>('ranked')
+const panelEl = $('panel')
+const panelBody = $('panel-body')
+
+// ink ramp on white — older papers fade, newer ones darken; seeds carry the thread
+const INK_RAMP = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3934', '#1c1b18']
+
+const HINTS: Record<ViewMode, string> = {
+  constellation: 'drag to pan · scroll to zoom · touch a paper to find its thread',
+  circle: 'rings — steps outward from your seeds · touch a paper to find its thread',
+  sphere: 'drag to rotate · touch a paper to find its thread',
+}
+
+let seeds: Work[] = []
+let corpus: Corpus | null = null
+let metrics: Metrics[] = []
+let order: number[] = []
+let seedLinks: number[] = []
+let byId = new Map<string, number>()
+
+const renderer = createRenderer($<HTMLCanvasElement>('canvas'), {
+  onHover(id) {
+    for (const li of rankedEl.children) li.classList.toggle('hover', (li as HTMLElement).dataset.id === id)
+    const li = id ? rankedEl.querySelector<HTMLElement>(`li[data-id="${id}"]`) : null
+    li?.scrollIntoView({ block: 'nearest' })
+  },
+  onSelect(id) {
+    if (id === null) {
+      panelEl.classList.remove('open')
+      for (const li of rankedEl.children) li.classList.remove('active')
+    } else {
+      openDetails(byId.get(id)!)
+    }
+  },
+})
+
+$('back').onclick = () => {
+  panelEl.classList.remove('open')
+  renderer.select(null)
+  for (const li of rankedEl.children) li.classList.remove('active')
+}
+
+document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
+  b.onclick = () => {
+    const m = b.dataset.m as ViewMode
+    document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('on', x === b))
+    $('hint').textContent = HINTS[m]
+    renderer.setMode(m)
+  }
+})
+
+function status(msg: string, isError = false) {
+  statusEl.textContent = msg
+  statusEl.classList.toggle('error', isError)
+}
+
+// --- seeds ---
+
+function renderChips() {
+  chipsEl.replaceChildren(
+    ...seeds.map((s, i) => {
+      const li = document.createElement('li')
+      const t = document.createElement('span')
+      t.className = 't'
+      t.textContent = s.title
+      t.title = s.title
+      const y = document.createElement('span')
+      y.className = 'y'
+      y.textContent = String(s.year)
+      const x = document.createElement('button')
+      x.textContent = '×'
+      x.onclick = () => {
+        seeds.splice(i, 1)
+        renderChips()
+      }
+      li.append(t, y, x)
+      return li
+    }),
+  )
+  weaveBtn.disabled = seeds.length === 0
+}
+
+async function addSeed() {
+  const q = seedInput.value.trim()
+  if (!q) return
+  addSeedBtn.disabled = true
+  status('Resolving paper…')
+  try {
+    const w = await resolveSeed(q)
+    if (!seeds.some((s) => s.id === w.id)) seeds.push(w)
+    seedInput.value = ''
+    status('')
+    renderChips()
+  } catch (err) {
+    status(err instanceof Error ? err.message : String(err), true)
+  } finally {
+    addSeedBtn.disabled = false
+    seedInput.focus()
+  }
+}
+
+addSeedBtn.onclick = addSeed
+seedInput.onkeydown = (e) => {
+  if (e.key === 'Enter') addSeed()
+}
+
+// --- weave ---
+
+weaveBtn.onclick = async () => {
+  weaveBtn.disabled = true
+  panelEl.classList.remove('open')
+  try {
+    corpus = await buildCorpus(seeds, status)
+    metrics = computeMetrics(corpus.works, corpus.edges)
+    byId = new Map(corpus.works.map((w, i) => [w.id, i]))
+    const seedIdx = new Set(corpus.works.flatMap((w, i) => (w.isSeed ? [i] : [])))
+    const counted = corpus.works.map(() => new Set<number>())
+    for (const [s, t] of corpus.edges) {
+      if (seedIdx.has(t)) counted[s].add(t)
+      if (seedIdx.has(s)) counted[t].add(s)
+    }
+    seedLinks = counted.map((c) => c.size)
+    order = corpus.works.map((_, i) => i).sort((a, b) => metrics[b].score - metrics[a].score)
+    renderList()
+    renderGraph()
+    status('')
+    $('counts').innerHTML = `<b>${corpus.works.length}</b> papers &nbsp;·&nbsp; <b>${corpus.edges.length}</b> citations`
+    $('stage').classList.add('woven')
+    document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
+  } catch (err) {
+    status(err instanceof Error ? err.message : String(err), true)
+  } finally {
+    weaveBtn.disabled = seeds.length === 0
+  }
+}
+
+// --- graph ---
+
+function yearColor(year: number, min: number, max: number): string {
+  const t = max > min ? (year - min) / (max - min) : 0.5
+  return INK_RAMP[Math.min(INK_RAMP.length - 1, Math.floor(t * INK_RAMP.length))]
+}
+
+function renderGraph() {
+  if (!corpus) return
+  const works = corpus.works
+  const years = works.map((w) => w.year).filter(Boolean)
+  const minY = Math.min(...years)
+  const maxY = Math.max(...years)
+  $('year-min').textContent = String(minY)
+  $('year-max').textContent = String(maxY)
+  const labeled = new Set(order.slice(0, 14))
+  const nodes: GraphNode[] = works.map((w, i) => ({
+    id: w.id,
+    r: 3.5 + metrics[i].score * 14,
+    color: w.isSeed ? THREAD : yearColor(w.year, minY, maxY),
+    label: w.title.length > 34 ? w.title.slice(0, 32) + '…' : w.title,
+    isSeed: w.isSeed,
+    labeled: labeled.has(i) || w.isSeed,
+    year: w.year,
+  }))
+  renderer.setData(nodes, corpus.edges.map(([s, t]) => [works[s].id, works[t].id]))
+}
+
+// --- ranked list ---
+
+function renderList() {
+  if (!corpus) return
+  const works = corpus.works
+  rankedEl.replaceChildren(
+    ...order.map((i, rank) => {
+      const w = works[i]
+      const li = document.createElement('li')
+      li.dataset.id = w.id
+      li.tabIndex = 0
+      const rankEl = document.createElement('span')
+      rankEl.className = 'rank'
+      rankEl.textContent = String(rank + 1)
+      const body = document.createElement('div')
+      body.className = 'body'
+      const title = document.createElement('div')
+      title.className = 'title'
+      title.textContent = w.title
+      const meta = document.createElement('div')
+      meta.className = 'meta'
+      meta.textContent = `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`
+      if (w.isSeed) {
+        const mark = document.createElement('span')
+        mark.className = 'seed-mark'
+        mark.textContent = ' — seed'
+        meta.append(mark)
+      }
+      body.append(title, meta)
+      const sc = document.createElement('span')
+      sc.className = 'sc'
+      sc.textContent = metrics[i].score.toFixed(2)
+      li.append(rankEl, body, sc)
+      li.onmouseenter = () => renderer.highlight(w.id)
+      li.onmouseleave = () => renderer.highlight(null)
+      li.onclick = () => {
+        renderer.focus(w.id)
+        openDetails(i)
+      }
+      li.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          renderer.focus(w.id)
+          openDetails(i)
+        }
+      }
+      return li
+    }),
+  )
+}
+
+// --- details panel ---
+
+function why(w: Work, m: Metrics, links: number): string {
+  if (w.isSeed) return 'One of your seed papers — the thread starts here.'
+  const bits: string[] = []
+  if (links >= 2) bits.push(`directly linked to ${links} of your seeds`)
+  if (m.parts.foundational > 0.5) bits.push('structurally foundational in this neighborhood')
+  if (m.parts.bridge > 0.5) bits.push('bridges otherwise-separate clusters')
+  if (m.parts.momentum > 0.6) bits.push(`gaining citations fast (${w.recentCites.toLocaleString()} in the last 3 years)`)
+  if (!bits.length) bits.push(`part of the seed neighborhood, cited ${w.citedBy.toLocaleString()} times overall`)
+  const s = bits.join('; ')
+  return s.charAt(0).toUpperCase() + s.slice(1) + '.'
+}
+
+function openDetails(i: number) {
+  if (!corpus) return
+  const w = corpus.works[i]
+  const m = metrics[i]
+  for (const li of rankedEl.children) li.classList.toggle('active', (li as HTMLElement).dataset.id === w.id)
+  rankedEl.querySelector<HTMLElement>(`li[data-id="${w.id}"]`)?.scrollIntoView({ block: 'nearest' })
+  renderer.select(w.id)
+
+  panelBody.replaceChildren()
+  const h2 = document.createElement('h2')
+  h2.textContent = w.title
+  const byline = document.createElement('div')
+  byline.className = 'byline'
+  byline.textContent = w.authors.slice(0, 6).join(', ') + (w.authors.length > 6 ? ' et al.' : '')
+  const date = document.createElement('div')
+  date.className = 'date'
+  date.textContent = `${w.year} · cited ${w.citedBy.toLocaleString()} times`
+  panelBody.append(h2, byline, date)
+  if (w.abstract) {
+    const d = document.createElement('p')
+    d.className = 'desc'
+    d.textContent = w.abstract
+    panelBody.append(d)
+  }
+  const whyEl = document.createElement('p')
+  whyEl.className = 'why'
+  const b = document.createElement('b')
+  b.textContent = 'why it matters'
+  whyEl.append(b, document.createTextNode(' — ' + why(w, m, seedLinks[i])))
+  panelBody.append(whyEl)
+  for (const [name, v] of Object.entries(m.parts)) {
+    const row = document.createElement('div')
+    row.className = 'meter'
+    const label = document.createElement('span')
+    label.textContent = name
+    const track = document.createElement('div')
+    track.className = 'track'
+    const fill = document.createElement('i')
+    fill.style.width = `${Math.round(v * 100)}%`
+    track.append(fill)
+    const val = document.createElement('em')
+    val.textContent = v.toFixed(2)
+    row.append(label, track, val)
+    panelBody.append(row)
+  }
+  const pills = document.createElement('div')
+  pills.className = 'pills'
+  const open = document.createElement('a')
+  open.className = 'pill'
+  open.href = w.doi ?? `https://openalex.org/${w.id}`
+  open.target = '_blank'
+  open.textContent = 'open paper ↗'
+  pills.append(open)
+  panelBody.append(pills)
+  panelEl.classList.add('open')
+}
+
+// --- export ---
+
+function download(name: string, text: string, type: string) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([text], { type }))
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+$('export-md').onclick = () => {
+  if (!corpus) return
+  const lines = [
+    '# Ariadne corpus',
+    '',
+    `Seeds: ${seeds.map((s) => s.title).join(' · ')}`,
+    `Papers: ${corpus.works.length} · ranked by composite influence (foundational 35%, bridge 25%, momentum 20%, relevance 20%)`,
+    '',
+  ]
+  order.forEach((i, rank) => {
+    const w = corpus!.works[i]
+    const m = metrics[i]
+    lines.push(`## ${rank + 1}. ${w.title} (${w.year})${w.isSeed ? ' — SEED' : ''}`)
+    lines.push(`- Authors: ${w.authors.slice(0, 8).join(', ')}${w.authors.length > 8 ? ' et al.' : ''}`)
+    if (w.doi) lines.push(`- DOI: ${w.doi}`)
+    lines.push(`- Score: ${m.score.toFixed(2)} (foundational ${m.parts.foundational.toFixed(2)}, bridge ${m.parts.bridge.toFixed(2)}, momentum ${m.parts.momentum.toFixed(2)}, relevance ${m.parts.relevance.toFixed(2)})`)
+    lines.push(`- Why it matters: ${why(w, m, seedLinks[i])}`)
+    if (w.abstract) lines.push(`\n> ${w.abstract}`)
+    lines.push('')
+  })
+  download('ariadne-corpus.md', lines.join('\n'), 'text/markdown')
+}
+
+$('export-json').onclick = () => {
+  if (!corpus) return
+  const data = order.map((i, rank) => {
+    const w = corpus!.works[i]
+    return {
+      rank: rank + 1,
+      ...w,
+      score: metrics[i].score,
+      parts: metrics[i].parts,
+      why: why(w, metrics[i], seedLinks[i]),
+    }
+  })
+  download('ariadne-corpus.json', JSON.stringify(data, null, 2), 'application/json')
+}
