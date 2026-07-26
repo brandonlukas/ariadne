@@ -106,6 +106,7 @@ export async function searchSeeds(q: string, n: number): Promise<Work[]> {
 export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void): Promise<Corpus> {
   const pool = new Map<string, Work>()
   for (const s of seeds) pool.set(s.id, { ...s, isSeed: true })
+  const thisYear = new Date().getFullYear()
 
   // how many distinct seed-neighborhood links corroborate each candidate
   const links = new Map<string, number>()
@@ -115,12 +116,15 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
     const s = seeds[i]
     onStatus(`Pulling citations ${i + 1}/${seeds.length}: ${s.title.slice(0, 48)}…`)
     for (const r of s.refs) bump(r)
-    // two sorts: top-cited alone buries recent work before ranking ever sees it
+    // three pulls per seed: the canon (all-time top-cited), the pulse (newest by
+    // date), and the frontier (last-2-years citers ranked by traction)
     const citers = new Set<string>()
-    for (const sort of ['cited_by_count:desc', 'publication_date:desc']) {
-      const j = await getJson(
-        `/works?filter=cites:${s.id}&per-page=${CITERS_PER_SEED}&sort=${sort}&select=${SELECT}`,
-      )
+    for (const query of [
+      `filter=cites:${s.id}&sort=cited_by_count:desc`,
+      `filter=cites:${s.id}&sort=publication_date:desc`,
+      `filter=cites:${s.id},from_publication_date:${thisYear - 2}-01-01&sort=cited_by_count:desc`,
+    ]) {
+      const j = await getJson(`/works?${query}&per-page=${CITERS_PER_SEED}&select=${SELECT}`)
       for (const raw of j.results ?? []) {
         const w = parseWork(raw)
         if (!pool.has(w.id)) pool.set(w.id, w)
@@ -132,16 +136,26 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
 
   const seedIds = new Set(seeds.map((s) => s.id))
   // tiebreak on citations per year, not lifetime count — else age wins every tie
-  const thisYear = new Date().getFullYear()
   const perYear = (id: string) => {
     const w = pool.get(id)
     return w ? w.citedBy / Math.max(1, thisYear - w.year + 1) : 0
   }
-  const candidates = [...links.entries()]
+  const ranked = [...links.entries()]
     .filter(([id]) => !seedIds.has(id))
     .sort((a, b) => b[1] - a[1] || perYear(b[0]) - perYear(a[0]))
-    .slice(0, MAX_NODES - seeds.length)
     .map(([id]) => id)
+  const cutN = MAX_NODES - seeds.length
+  const candidates = ranked.slice(0, cutN)
+  // recency quota: the cut otherwise re-drops the young low-cite papers the
+  // frontier pull just harvested — reserve a quarter of the slots for them
+  const isRecent = (id: string) => (pool.get(id)?.year ?? 0) >= thisYear - 2
+  const quota = Math.floor(cutN * 0.25)
+  let need = quota - candidates.filter(isRecent).length
+  if (need > 0) {
+    const extra = ranked.slice(cutN).filter(isRecent).slice(0, need)
+    for (let i = candidates.length - 1; i >= 0 && extra.length; i--)
+      if (!isRecent(candidates[i])) candidates.splice(i, 1, extra.shift()!)
+  }
 
   const toFetch = candidates.filter((id) => !pool.has(id))
   for (let i = 0; i < toFetch.length; i += 50) {
