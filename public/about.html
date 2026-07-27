@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ariadne — how it works</title>
+  <style>
+    :root {
+      --paper: #ffffff; --ink: #1b1a17; --gray: #6e6c65; --faint: #a6a49c;
+      --hairline: #e9e8e4; --hover: #f6f5f2; --thread: #b41f3a; --ok: #2e8b57;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink);
+      font: 14px/1.7 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    .page { max-width: 660px; margin: 0 auto; padding: 40px 24px 90px; }
+    nav { display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--hairline); }
+    .wordmark { font-size: 14px; letter-spacing: 0.02em; color: var(--ink);
+      text-decoration: none; }
+    .wordmark i { font-style: normal; color: var(--thread); }
+    nav .here { color: var(--faint); font-size: 12px; }
+    h1 { font-size: 26px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.25;
+      margin: 44px 0 6px; text-wrap: balance; }
+    .dek { color: var(--gray); font-size: 15px; margin: 0 0 8px; }
+    h2 { margin: 46px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--faint); }
+    p { margin: 0 0 14px; text-wrap: pretty; }
+    b { font-weight: 500; color: var(--thread); }
+    em { color: var(--gray); }
+    code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; color: var(--gray);
+      background: var(--hover); padding: 1px 5px; border-radius: 4px; }
+    .score { display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid var(--hairline); }
+    .score:last-of-type { border-bottom: 1px solid var(--hairline); }
+    .score .name { width: 110px; flex-shrink: 0; color: var(--thread); font-size: 13px;
+      padding-top: 1px; }
+    .score .name small { display: block; color: var(--faint); font-size: 10.5px;
+      letter-spacing: 0.04em; }
+    .score p { margin: 0; font-size: 13px; color: var(--ink); }
+    .aside { border-left: 2px solid var(--thread); padding: 2px 0 2px 16px; margin: 18px 0;
+      color: var(--gray); font-size: 13px; }
+    a { color: var(--thread); }
+    footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--hairline);
+      font-size: 12px; color: var(--faint); display: flex; gap: 16px; flex-wrap: wrap; }
+    footer a { color: var(--gray); text-decoration: none; }
+    footer a:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav>
+      <a class="wordmark" href="./">ariadne<i>.</i></a>
+      <span class="here">how it works</span>
+    </nav>
+
+    <h1>A thread through the literature</h1>
+    <p class="dek">What ariadne actually does, told the way it happens.</p>
+
+    <p>Your PI drops two papers in Slack — say, <em>Restormer</em>, a famous image-restoration
+    transformer, and a niche paper on denoising retinal OCT scans — and says <em>get familiar
+    with this space</em>. What you need isn't one reading list. It's four: the
+    <b>groundwork</b> everything rests on, the seeds' <b>contemporaries</b>, where the field
+    <b>went next</b>, and what's happening <b>right now</b>. A single ranking can't be all
+    four at once — most tools pretend otherwise, and hand you whatever "related papers" means
+    that day. Ariadne makes each question its own, inspectable answer.</p>
+
+    <h2>what a weave gathers</h2>
+    <p>Paste your papers as seeds and weave. For each seed, ariadne pulls <b>every paper it
+    cited</b> — a bibliography is small, so nothing is sampled — and then three deliberate
+    50-paper slices of the papers citing it: the all-time most-cited, the newest, and the
+    last two years ranked by traction. That third slice exists because "most cited" is a
+    contest old papers always win; without it, the recent work you most need never enters the
+    room.</p>
+    <p>Then the trick that costs nothing: every fetched citer carries its own reference list,
+    so ariadne counts how often each paper in the wider literature is <b>cited alongside your
+    seed</b>. Papers that keep appearing next to it — co-cited by fifteen or more of its
+    citers — are admitted too. This is the only route to a seed's true peers:
+    <em>concurrent</em> work can't cite your seed and was never cited by it, so no direct
+    edge exists. When later papers keep citing the two together, the field has already
+    decided they belong side by side. Ariadne listens.</p>
+    <p>Everyone then competes for 200 places. Papers directly linked to more of your seeds
+    rank first, ties break on citations <em>per year</em> rather than lifetime totals, a
+    quarter of the seats are reserved for papers from the last two years, and anything
+    directly touching two or more seeds is guaranteed a place — those are the rarest,
+    highest-signal finds a citation graph can produce.</p>
+
+    <h2>four scores, in the open</h2>
+    <p>Every paper in the weave gets four scores, each visible as a meter when you open it.
+    Nothing is hidden behind a similarity number.</p>
+
+    <div class="score"><div class="name">foundational<small>PageRank</small></div>
+      <p>The algorithm that made early Google, run on your corpus's citation graph. Imagine a
+      reader who forever follows references backward from random starting points: the papers
+      they keep arriving at are the ones the rest of the literature structurally rests on.</p></div>
+    <div class="score"><div class="name">bridge<small>betweenness centrality</small></div>
+      <p>How often a paper sits on the shortest path between two other papers in the corpus.
+      High scores mark connectors — the papers that join otherwise-separate conversations,
+      like the method paper linking a computer-vision cluster to a medical-imaging one.</p></div>
+    <div class="score"><div class="name">momentum<small>citation velocity</small></div>
+      <p>Recent citations, tempered two ways: log-damped so one blockbuster doesn't flatten
+      everyone else, and blended with the <em>fraction</em> of a paper's lifetime citations
+      earned in the last three years — high for new-and-rising work at any absolute size,
+      near zero for a settled classic still coasting on inertia.</p></div>
+    <div class="score"><div class="name">relevance<small>seed proximity</small></div>
+      <p>How few citation hops separate the paper from your seeds — with a boost for papers
+      touching several seeds at once, because proximity alone can't tell a paper that cites
+      one seed from the far rarer paper that cites them all.</p></div>
+
+    <p>Raw values of these things are wildly skewed — one paper with 90,000 citations would
+    compress everyone else to zero — so each score is <em>rank-normalized</em>: what matters
+    is a paper's position among its 200 peers, not its absolute magnitude.</p>
+
+    <h2>one weighting would be a lie</h2>
+    <p>The final rank is a weighted blend of the four scores, and the weights are the point.
+    <b>canon</b> leans on foundational and bridge — the committee-exam list. <b>catch-up</b>
+    leans on momentum and relevance, and applies an <em>era gate</em>: papers published at or
+    before your latest seed are discounted, because a 2015 paper cannot be a development
+    since 2022 no matter how many citations it still collects — this single rule is what
+    keeps U-Net from topping every list forever. <b>pulse</b> pushes relevance hardest: the
+    newest work closest to your particular thread. <b>newest</b> is honest chronology. And
+    the seeds' own years are marked with red ticks on the year histogram, so brushing across
+    them turns canon into a fifth view: <em>the contemporaries</em> — the papers your seeds
+    competed with, recovered from their bibliographies and their co-citations.</p>
+
+    <div class="aside">This is the quiet difference from the usual "related papers" box:
+    every ranking here is a legible formula over four visible scores, steerable by intent,
+    with its biases named and gated — not a similarity score you have to take on faith.</div>
+
+    <h2>the ai thread, if you want it</h2>
+    <p>Add a free OpenRouter API key (it stays in your browser, and a "turn off" control
+    forgets it along with everything it produced) and ariadne reads your seed set once and
+    infers the question you're actually asking. From then on, opening any paper generates a
+    two-sentence verdict against <em>your</em> question — and it is allowed to say no: a
+    famous paper that doesn't serve your thread gets told so. The status chip always shows
+    which model answered.</p>
+
+    <h2>and then your afternoon</h2>
+    <p>Skim canon and star what you haven't read. Switch to catch-up for what happened since.
+    Brush the seed ticks for the contemporaries. Click <b>⋈ bridges</b> for the rare papers
+    touching all your seeds — often the closest published ancestors of your own project.
+    Hide the noise (bibliographic databases have plenty; hidden papers leave every view and
+    every export). Promote your best find to a seed and reweave. Export BibTeX into your
+    reference manager, and send the URL to your PI — the whole weave lives in the link and
+    rebuilds itself on their machine.</p>
+    <p><a href="./#s=W4225672218,W3121054072">Try the exact weave from this story</a> — or
+    <a href="./">start your own</a>.</p>
+
+    <footer>
+      <a href="./">ariadne</a>
+      <a href="privacy.html">privacy</a>
+      <a href="terms.html">terms</a>
+      <a href="https://github.com/brandonlukas/ariadne">source</a>
+      <span>data: OpenAlex</span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ariadne — terms</title>
+  <style>
+    :root {
+      --paper: #ffffff; --ink: #1b1a17; --gray: #6e6c65; --faint: #a6a49c;
+      --hairline: #e9e8e4; --hover: #f6f5f2; --thread: #b41f3a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink);
+      font: 14px/1.7 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    .page { max-width: 660px; margin: 0 auto; padding: 40px 24px 90px; }
+    nav { display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--hairline); }
+    .wordmark { font-size: 14px; letter-spacing: 0.02em; color: var(--ink);
+      text-decoration: none; }
+    .wordmark i { font-style: normal; color: var(--thread); }
+    nav .here { color: var(--faint); font-size: 12px; }
+    h1 { font-size: 24px; font-weight: 500; margin: 44px 0 4px; }
+    .dek { color: var(--gray); margin: 0 0 8px; }
+    h2 { margin: 40px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--faint); }
+    p { margin: 0 0 14px; text-wrap: pretty; }
+    b { font-weight: 500; color: var(--thread); }
+    a { color: var(--thread); }
+    footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--hairline);
+      font-size: 12px; color: var(--faint); display: flex; gap: 16px; }
+    footer a { color: var(--gray); text-decoration: none; }
+    footer a:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav>
+      <a class="wordmark" href="./">ariadne<i>.</i></a>
+      <span class="here">terms</span>
+    </nav>
+
+    <h1>Terms of use</h1>
+    <p class="dek">Plain language, honestly meant.</p>
+
+    <h2>what this is</h2>
+    <p>Ariadne is a free research tool for exploring scientific literature through citation
+    graphs. It is provided <b>as-is, without warranty of any kind</b>. Rankings, scores, and
+    AI-generated summaries are heuristics over imperfect data — helpful for orientation, not a
+    substitute for reading papers or for professional, medical, legal, or financial judgment.
+    Citation databases contain errors, and language models make mistakes; verify anything that
+    matters.</p>
+
+    <h2>third-party content and services</h2>
+    <p>Paper metadata comes from <a href="https://openalex.org">OpenAlex</a>. Figure
+    thumbnails are loaded directly from their publishers (arXiv, Springer Nature, PLOS,
+    bioRxiv/medRxiv, eLife) and remain the property of their respective rights holders —
+    ariadne links to and displays them; it does not copy, host, or claim them. Papers you
+    open link out to the publisher's own page. If you enable AI features, your use of
+    OpenRouter is governed by <a href="https://openrouter.ai/terms">OpenRouter's terms</a>,
+    and you are responsible for your own API key and any usage it incurs.</p>
+
+    <h2>acceptable use</h2>
+    <p>Be a polite API citizen: don't script ariadne to hammer OpenAlex or publisher hosts.
+    Don't use the tool to misrepresent scholarship — e.g., presenting AI-generated summaries
+    as your own reading.</p>
+
+    <h2>liability</h2>
+    <p>To the maximum extent permitted by law, the maintainer is not liable for any damages
+    arising from use of this site — including decisions made on the basis of its rankings or
+    summaries, third-party service behavior, or data loss (your corpus lives in your own
+    browser storage, which your browser may clear).</p>
+
+    <h2>changes</h2>
+    <p>These terms and the site itself may change at any time; continued use means acceptance
+    of the current version. History is public in the
+    <a href="https://github.com/brandonlukas/ariadne">repository</a>.</p>
+
+    <footer>
+      <a href="./">ariadne</a>
+      <a href="about.html">how it works</a>
+      <a href="privacy.html">privacy</a>
+      <span>updated 2026-07-26</span>
+    </footer>
+  </div>
+</body>
+</html>

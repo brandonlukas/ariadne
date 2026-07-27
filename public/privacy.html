@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ariadne — privacy</title>
+  <style>
+    :root {
+      --paper: #ffffff; --ink: #1b1a17; --gray: #6e6c65; --faint: #a6a49c;
+      --hairline: #e9e8e4; --hover: #f6f5f2; --thread: #b41f3a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink);
+      font: 14px/1.7 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    .page { max-width: 660px; margin: 0 auto; padding: 40px 24px 90px; }
+    nav { display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--hairline); }
+    .wordmark { font-size: 14px; letter-spacing: 0.02em; color: var(--ink);
+      text-decoration: none; }
+    .wordmark i { font-style: normal; color: var(--thread); }
+    nav .here { color: var(--faint); font-size: 12px; }
+    h1 { font-size: 24px; font-weight: 500; margin: 44px 0 4px; }
+    .dek { color: var(--gray); margin: 0 0 8px; }
+    h2 { margin: 40px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--faint); }
+    p { margin: 0 0 14px; text-wrap: pretty; }
+    b { font-weight: 500; color: var(--thread); }
+    a { color: var(--thread); }
+    footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--hairline);
+      font-size: 12px; color: var(--faint); display: flex; gap: 16px; }
+    footer a { color: var(--gray); text-decoration: none; }
+    footer a:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav>
+      <a class="wordmark" href="./">ariadne<i>.</i></a>
+      <span class="here">privacy</span>
+    </nav>
+
+    <h1>Privacy</h1>
+    <p class="dek">Short, because there is almost nothing to disclose.</p>
+
+    <h2>no server, no accounts, no tracking</h2>
+    <p>Ariadne is a static page. There is no backend, no sign-up, no analytics, no advertising,
+    and no cookies set by ariadne. Your seed papers, woven corpora, stars and hides, and any
+    AI-generated text are stored only in your browser's <b>localStorage</b>, on your device.
+    Clearing your seeds, using "turn off — forget key," or clearing site data removes them.
+    We never see any of it — there is no "we" to send it to.</p>
+
+    <h2>what your browser talks to</h2>
+    <p><b>OpenAlex</b> — every weave queries the OpenAlex API directly from your browser for
+    paper metadata. Those requests include a maintainer contact email (per OpenAlex's polite-use
+    policy) — not your identity. OpenAlex sees the paper IDs and searches you request, from
+    your IP address, under <a href="https://openalex.org">their terms</a>.</p>
+    <p><b>Publisher image hosts</b> — the gallery view loads figure images directly from
+    arXiv/ar5iv, Springer Nature, PLOS, bioRxiv/medRxiv, and eLife. Like any embedded image on
+    the web, those hosts see your IP request the file.</p>
+    <p><b>OpenRouter (optional)</b> — only if you paste an API key. The key is stored in your
+    browser's localStorage and sent only to OpenRouter to authenticate your own requests.
+    When AI is on, the titles and abstracts of your seed papers (and of papers you open) are
+    sent to OpenRouter for processing under
+    <a href="https://openrouter.ai/privacy">their privacy policy</a>. Turning AI off deletes
+    the key and everything it generated. Never paste your key into a device you don't trust.</p>
+    <p><b>GitHub Pages</b> — hosts this site and may log standard access data (IP, user agent)
+    per <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.</p>
+
+    <h2>sharing links</h2>
+    <p>The "copy link" URL contains only the OpenAlex IDs of your seed papers. Anyone with the
+    link can see which seeds it encodes and rebuild the same weave; your stars, hides, and AI
+    text are not in the link and stay on your device.</p>
+
+    <p>Questions: open an issue at
+    <a href="https://github.com/brandonlukas/ariadne">github.com/brandonlukas/ariadne</a>.</p>
+
+    <footer>
+      <a href="./">ariadne</a>
+      <a href="about.html">how it works</a>
+      <a href="terms.html">terms</a>
+      <span>updated 2026-07-26</span>
+    </footer>
+  </div>
+</body>
+</html>

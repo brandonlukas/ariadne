@@ -33,8 +33,11 @@
     .wordmark { font-size: 14px; letter-spacing: 0.02em; }
     .wordmark i { font-style: normal; color: var(--thread); }
     nav .tagline { color: var(--faint); font-size: 12px; }
-    nav .right { margin-left: auto; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+    nav .right { margin-left: auto; color: var(--faint); font-size: 12px;
+      font-variant-numeric: tabular-nums; display: flex; gap: 14px; align-items: baseline; }
     nav .right b { font-weight: 400; color: var(--gray); }
+    .navlink { color: var(--faint); text-decoration: none; }
+    .navlink:hover { color: var(--gray); }
 
     #main { flex: 1; display: flex; min-height: 0; }
 
@@ -258,7 +261,12 @@
     <nav>
       <span class="wordmark">ariadne<i>.</i></span>
       <span class="tagline">a thread through the literature</span>
-      <span class="right" id="counts"></span>
+      <span class="right">
+        <a class="navlink" href="about.html">how it works</a>
+        <a class="navlink" href="privacy.html">privacy</a>
+        <a class="navlink" href="terms.html">terms</a>
+        <span id="counts"></span>
+      </span>
     </nav>
     <div id="main">
       <aside id="sidebar">
