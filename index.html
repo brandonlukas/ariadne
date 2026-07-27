@@ -55,12 +55,15 @@
     #picker { list-style: none; margin: 8px 0 0; padding: 0 18px 0 22px; display: flex;
       flex-direction: column; gap: 4px; }
     #picker:empty { display: none; }
-    #picker li { display: flex; align-items: baseline; gap: 8px; cursor: pointer;
+    #picker li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 8px; cursor: pointer;
       border: 1px dashed var(--hairline); border-radius: 8px; padding: 6px 10px;
       font-size: 12px; }
     #picker li:hover { background: var(--hover); border-style: solid; }
-    #picker .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #picker .y { color: var(--faint); white-space: nowrap; }
+    #picker .t { flex: 1 0 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #picker .y { color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    #picker .c { color: var(--gray); white-space: nowrap; font-variant-numeric: tabular-nums; margin-left: auto; }
+    #picker .tag { color: var(--faint); border: 1px solid var(--hairline); border-radius: 999px;
+      padding: 0 7px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
     #seed-chips { list-style: none; margin: 10px 0 0; padding: 0 18px 0 22px; display: flex;
       flex-direction: column; gap: 5px; }
     #seed-chips li { display: flex; align-items: center; gap: 8px;

@@ -1,4 +1,4 @@
-import { buildCorpus, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
+import { autocompleteWorks, buildCorpus, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
 import { getKey, getLastModel, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
@@ -251,6 +251,20 @@ function renderChips() {
 
 const pickerEl = $<HTMLUListElement>('picker')
 
+// one row shape for both search results and type-ahead suggestions:
+// title · (preprint tag) · meta · cite count
+function pickerRow(title: string, meta: string, preprint: boolean, citedBy: number | null, pick: () => void) {
+  const li = el('li')
+  const t = el('span', 't', title)
+  t.title = title
+  li.append(t)
+  if (preprint) li.append(el('span', 'tag', 'preprint'))
+  li.append(el('span', 'y', meta))
+  if (citedBy !== null) li.append(el('span', 'c', `${citedBy.toLocaleString()} cites`))
+  li.onclick = pick
+  return li
+}
+
 function pushSeed(w: Work) {
   if (!seeds.some((s) => s.id === w.id)) seeds.push(w)
   seedInput.value = ''
@@ -261,6 +275,7 @@ function pushSeed(w: Work) {
 async function addSeed() {
   const q = seedInput.value.trim()
   if (!q) return
+  cancelSuggest()
   addSeedBtn.disabled = true
   pickerEl.replaceChildren()
   status('Resolving paper…')
@@ -269,22 +284,22 @@ async function addSeed() {
       pushSeed(await resolveSeed(q))
     } else {
       const results = await searchSeeds(q, 3)
-      if (!results.length) throw new Error(`No paper found for “${q}”`)
+      if (!results.length)
+        throw new Error(
+          `No paper found for “${q}” — very recent papers reach OpenAlex on a delay; pasting the DOI or arXiv link often works sooner`,
+        )
       if (results.length === 1) pushSeed(results[0])
       else {
         // fuzzy match — let the user confirm which paper they meant
         status('Which one?')
         pickerEl.replaceChildren(
           ...results.map((w) => {
-            const li = el('li')
-            const t = el('span', 't', w.title)
-            t.title = w.title
-            li.append(t, el('span', 'y', `${w.authors[0]?.split(' ').pop() ?? '?'} ${w.year}`))
-            li.onclick = () => {
+            const surname = w.authors[0]?.split(' ').pop() ?? '?'
+            const meta = `${w.venue ? w.venue + ' · ' : ''}${surname} ${w.year}`
+            return pickerRow(w.title, meta, w.type === 'preprint', w.citedBy, () => {
               pickerEl.replaceChildren()
               pushSeed(w)
-            }
-            return li
+            })
           }),
         )
       }
@@ -296,7 +311,56 @@ async function addSeed() {
     seedInput.focus()
   }
 }
-seedInput.oninput = () => pickerEl.replaceChildren()
+
+// type-ahead: debounced suggestions into the same picker; best-effort only —
+// failures stay silent because submit still searches properly
+let suggestTimer = 0
+let suggestSeq = 0
+const cancelSuggest = () => {
+  clearTimeout(suggestTimer)
+  suggestSeq++
+}
+seedInput.oninput = () => {
+  pickerEl.replaceChildren()
+  cancelSuggest()
+  const q = seedInput.value.trim()
+  if (q.length < 3 || idLike(q)) return
+  const seq = suggestSeq
+  suggestTimer = window.setTimeout(async () => {
+    try {
+      const suggestions = await autocompleteWorks(q)
+      if (seq !== suggestSeq) return // stale — every input change bumps the seq
+      // same title twice usually means preprint + published twin; collapse to
+      // one row that falls through to the full picker, where venue/type/cites
+      // make the two tellable apart (autocomplete's payload can't)
+      const byTitle = new Map<string, { s: (typeof suggestions)[0]; dup: boolean }>()
+      for (const s of suggestions) {
+        const k = s.title.toLowerCase()
+        const hit = byTitle.get(k)
+        if (hit) hit.dup = true
+        else byTitle.set(k, { s, dup: false })
+      }
+      pickerEl.replaceChildren(
+        ...[...byTitle.values()].slice(0, 5).map(({ s, dup }) =>
+          pickerRow(s.title, s.hint?.split(',')[0] ?? '', false, null, async () => {
+            pickerEl.replaceChildren()
+            if (dup) {
+              seedInput.value = s.title
+              addSeed()
+              return
+            }
+            status('Resolving paper…')
+            try {
+              pushSeed(await resolveSeed(s.id))
+            } catch (err) {
+              status(err instanceof Error ? err.message : String(err), true)
+            }
+          }),
+        ),
+      )
+    } catch {}
+  }, 250)
+}
 
 $<HTMLFormElement>('seed-form').onsubmit = (e) => {
   e.preventDefault()

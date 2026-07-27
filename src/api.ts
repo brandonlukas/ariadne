@@ -3,6 +3,7 @@ export interface Work {
   title: string
   year: number
   citedBy: number
+  type: string // 'preprint' | 'article' | …
   authors: string[]
   venue: string | null
   arxivId: string | null
@@ -22,7 +23,7 @@ export interface Corpus {
 const API = 'https://api.openalex.org'
 const MAILTO = 'brandonlukas@gmail.com'
 const SELECT =
-  'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
+  'id,display_name,publication_year,cited_by_count,type,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
 const CITERS_PER_SEED = 50
 
 // bring-your-own OpenAlex key: anonymous use shares a $0.10/day per-IP budget;
@@ -101,6 +102,7 @@ function parseWork(j: any): Work {
     title: j.display_name ?? '(untitled)',
     year: j.publication_year ?? 0,
     citedBy: j.cited_by_count ?? 0,
+    type: j.type ?? 'article',
     authors: (j.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
     venue: j.primary_location?.source?.display_name ?? null,
     arxivId,
@@ -134,9 +136,47 @@ export async function resolveSeed(input: string): Promise<Work> {
   return results[0]
 }
 
+const tokens = (s: string) =>
+  new Set(s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(' ').filter(Boolean))
+
+// share of the query's words found in the title — 1 means every word landed
+export function titleMatch(q: string, title: string): number {
+  const qt = tokens(q)
+  const tt = tokens(title)
+  let hit = 0
+  for (const w of qt) if (tt.has(w)) hit++
+  return qt.size ? hit / qt.size : 0
+}
+
 export async function searchSeeds(q: string, n: number): Promise<Work[]> {
-  const j = await getJson(`/works?search=${encodeURIComponent(q)}&per-page=${n}&select=${SELECT}`)
-  return (j.results ?? []).map(parseWork)
+  const page = (params: string): Promise<Work[]> =>
+    getJson(`/works?${params}&per-page=10&select=${SELECT}`).then((j) => (j.results ?? []).map(parseWork))
+  let works = await page(`search=${encodeURIComponent(q)}`)
+  // general search is citation-weighted, which buries new zero-cite papers even
+  // on an exact-title query; a title-only phrase search rescues them
+  if (!works.some((w) => titleMatch(q, w.title) >= 0.8))
+    works = works.concat(await page(`filter=title.search:${encodeURIComponent(q.replace(/[,:]/g, ' '))}`))
+  // ties (identical twins) break toward the record with a DOI — the better-linked one
+  return [...new Map(works.map((w) => [w.id, w])).values()]
+    .sort((a, b) => titleMatch(q, b.title) - titleMatch(q, a.title) || b.citedBy - a.citedBy || +!!b.doi - +!!a.doi)
+    .slice(0, n)
+}
+
+export interface Suggestion {
+  id: string
+  title: string
+  hint: string | null // authors, per OpenAlex autocomplete
+}
+
+// purpose-built type-ahead endpoint: fast and cheap, but the payload carries no
+// year/venue, and its cited_by_count is unreliable (returns 0 for cited works)
+export async function autocompleteWorks(q: string): Promise<Suggestion[]> {
+  const j = await getJson(`/autocomplete/works?q=${encodeURIComponent(q)}`)
+  return (j.results ?? []).map((r: any) => ({
+    id: short(r.id),
+    title: r.display_name ?? '(untitled)',
+    hint: r.hint ?? null,
+  }))
 }
 
 export type WeaveMode = 'roots' | 'both' | 'shoots'
