@@ -253,6 +253,15 @@
     .meter em { font-style: normal; width: 32px; text-align: right; color: var(--faint);
       font-variant-numeric: tabular-nums; }
     #panel .pills { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+    #panel .ch { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--faint); padding: 22px 0 5px; }
+    #panel .conn { display: flex; gap: 10px; align-items: baseline; padding: 4.5px 0;
+      font-size: 12px; cursor: pointer; border-top: 1px solid var(--hairline); }
+    #panel .conn .y { color: var(--faint); font-size: 10.5px; min-width: 30px;
+      font-variant-numeric: tabular-nums; }
+    #panel .conn .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; }
+    #panel .conn:hover .t { color: var(--thread); }
     button:focus-visible, a:focus-visible, li:focus-visible, input:focus-visible {
       outline: 2px solid var(--thread); outline-offset: 2px; }
   </style>

@@ -798,6 +798,7 @@ function openDetails(i: number) {
     el('div', 'date', `${w.venue ? w.venue + ' · ' : ''}${w.year} · cited ${w.citedBy.toLocaleString()} times`),
   )
   if (w.abstract) panelBody.append(el('p', 'desc', w.abstract))
+  if (panelId !== w.id) panelEl.scrollTop = 0 // new paper starts at the top; ai-text swaps don't jump
   panelId = w.id
   const whyEl = el('p', 'why')
   const ai = aiWhy[w.id]
@@ -860,6 +861,36 @@ function openDetails(i: number) {
     pills.append(grow)
   }
   panelBody.append(pills)
+
+  // the paper's neighborhood, so finding a node's connections doesn't require
+  // clicking around the canvas
+  const byScore = (a: number, b: number) => metrics[b].score - metrics[a].score
+  const ins: number[] = []
+  const outs: number[] = []
+  for (const [s, t] of corpus.edges) {
+    if (t === i) ins.push(s)
+    if (s === i) outs.push(t)
+  }
+  const group = (label: string, idxs: number[]) => {
+    if (!idxs.length) return
+    panelBody.append(el('div', 'ch', `${label} · ${idxs.length} in this weave`))
+    for (const j of idxs.sort(byScore)) {
+      const w2 = corpus!.works[j]
+      const row = el('div', 'conn')
+      row.append(el('span', 'y', String(w2.year || '—')), el('span', 't', w2.title))
+      row.title = w2.title
+      row.onmouseenter = () => renderer.highlight(w2.id)
+      row.onmouseleave = () => renderer.highlight(null)
+      row.onclick = () => {
+        renderer.focus(w2.id)
+        openDetails(j)
+      }
+      panelBody.append(row)
+    }
+  }
+  group('cited by', ins)
+  group('cites', outs)
+
   panelEl.classList.add('open')
 }
 
