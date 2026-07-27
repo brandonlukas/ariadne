@@ -5,11 +5,13 @@ import type { Metrics } from './metrics.ts'
 const KEY = 'ariadne:llm-key'
 const MODEL_KEY = 'ariadne:llm-model'
 // free models churn on OpenRouter — walk the list until one answers.
-// gemma first: it doesn't reason, so it can't leak chain-of-thought into answers
+// non-reasoning models only: reasoners (nemotron) leak chain-of-thought into
+// plain content where no tag-stripping can catch it
 export const MODELS = [
   'google/gemma-4-31b-it:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
   'openai/gpt-oss-20b:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'inclusionai/ling-3.0-flash:free',
 ]
 
 let lastModel = ''

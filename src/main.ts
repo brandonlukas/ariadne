@@ -31,7 +31,7 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v5' // bump when the cached Work shape changes
+const STORE = 'ariadne:weave:v6' // bump when the cached corpus shape or harvest logic changes
 
 function saveStore() {
   try {
@@ -356,10 +356,12 @@ function renderYears() {
   const counts = new Map<number, number>()
   for (const w of corpus.works) if (w.year) counts.set(w.year, (counts.get(w.year) ?? 0) + 1)
   const max = Math.max(...counts.values())
+  const seedYears = new Set(corpus.works.filter((w) => w.isSeed).map((w) => w.year))
   const bars = []
   for (let y = yearSpan[0]; y <= yearSpan[1]; y++) {
     const n = counts.get(y) ?? 0
     const bar = el('div')
+    if (seedYears.has(y)) bar.classList.add('seed-year')
     bar.dataset.y = String(y)
     bar.style.height = `${2 + Math.round(26 * (n / max))}px`
     bar.style.background = yearColor(y, yearSpan[0], yearSpan[1])
@@ -425,11 +427,10 @@ function applyFilter() {
     ;(bar as HTMLElement).style.opacity =
       brushRange && (y < brushRange[0] || y > brushRange[1]) ? '0.25' : '1'
   }
+  // one rule: the list shows what passes the filters; the graph dims the rest
   for (const li of rankedEl.children) {
     const row = li as HTMLElement
-    const miss = vis !== null && !vis.has(row.dataset.id!)
-    row.classList.toggle('ghost', miss)
-    row.hidden = miss && !!needle // text filter hides; brush/lens only dim
+    row.hidden = vis !== null && !vis.has(row.dataset.id!)
   }
   for (const card of document.querySelectorAll<HTMLElement>('#gallery .card'))
     card.classList.toggle('ghost', vis !== null && !vis.has(card.dataset.id!))

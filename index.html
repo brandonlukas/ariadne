@@ -138,7 +138,6 @@
       border-bottom: 1px solid var(--hairline); cursor: pointer; }
     #ranked li:hover, #ranked li.hover { background: var(--hover); }
     #ranked li.active { background: var(--sel); }
-    #ranked li.ghost { opacity: 0.35; }
     #ranked .rank { color: var(--faint); font-size: 11px; padding-top: 2px; min-width: 16px;
       text-align: right; font-variant-numeric: tabular-nums; }
     #ranked .body { flex: 1; min-width: 0; }
@@ -163,6 +162,7 @@
     #years { position: absolute; left: 20px; bottom: 46px; display: none;
       align-items: flex-end; gap: 1px; cursor: crosshair; touch-action: none; }
     #years div { width: 4px; border-radius: 1px; }
+    #years div.seed-year { box-shadow: 0 3px 0 var(--thread); } /* seeds live here */
     #year-ticks { position: absolute; left: 20px; bottom: 34px; height: 10px; display: none;
       font-size: 9px; color: var(--faint); font-variant-numeric: tabular-nums; }
     #year-ticks span { position: absolute; top: 0; transform: translateX(-50%); }
