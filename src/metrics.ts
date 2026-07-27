@@ -22,13 +22,9 @@ export const PRESETS: Record<'canon' | 'catchup' | 'loadbearing', Weights> = {
 // restart: optional teleport distribution. Uniform = classic PageRank; mass on
 // the seeds = personalized PageRank ("a reader starts at YOUR papers and
 // forever follows references — where do they keep arriving?")
-export function pagerank(
-  n: number,
-  edges: [number, number][],
-  d = 0.85,
-  iters = 50,
-  restart?: number[],
-): number[] {
+export function pagerank(n: number, edges: [number, number][], restart?: number[]): number[] {
+  const d = 0.85
+  const iters = 50
   const rv = restart ?? new Array(n).fill(1 / n)
   const out = new Array(n).fill(0)
   for (const [s] of edges) out[s]++
@@ -128,7 +124,7 @@ export function computeMetrics(
   const nSeeds = works.filter((wk) => wk.isSeed).length
   const restart =
     personalized && nSeeds ? works.map((wk) => (wk.isSeed ? 1 / nSeeds : 0)) : undefined
-  const pr = norm(pagerank(n, edges, 0.85, 50, restart))
+  const pr = norm(pagerank(n, edges, restart))
   const bt = norm(betweenness(n, edges))
   const vel = norm(works.map((wk) => Math.log1p(wk.recentCites)))
   // fraction of lifetime citations from the last 3 years — high for new-and-hot

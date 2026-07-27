@@ -50,16 +50,20 @@ function getJson(path: string): Promise<any> {
   const p = (async () => {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(url)
-      if (res.status === 429 && attempt < 3) {
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
-        continue
-      }
-      if (res.status === 429)
+      if (res.status === 429) {
+        // budget-exhaustion 429s don't recover in seconds — only wait out a
+        // short server-stated Retry-After, once; otherwise fail fast
+        const wait = Number(res.headers.get('retry-after'))
+        if (attempt === 0 && wait > 0 && wait <= 10) {
+          await new Promise((r) => setTimeout(r, wait * 1000))
+          continue
+        }
         throw new Error(
           getAlexKey()
             ? 'OpenAlex is rate-limiting (429) — daily budget likely spent; it refills daily'
             : 'OpenAlex is rate-limiting (429) — a free API key (openalex.org/settings/api, paste it under data · openalex) gives 10× the daily budget',
         )
+      }
       if (!res.ok) throw new Error(`OpenAlex returned ${res.status}`)
       return res.json()
     }

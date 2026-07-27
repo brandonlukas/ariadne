@@ -61,15 +61,9 @@ const idbSet = async (k: string, v: unknown): Promise<void> => {
 }
 
 function saveStore() {
-  const payload = { seeds, corpora, ask, flags, intent, aiWhy }
-  try {
-    localStorage.setItem(STORE, JSON.stringify(payload))
-  } catch {
-    // uncapped corpora can outgrow the quota — keep at least the active mode
-    try {
-      localStorage.setItem(STORE, JSON.stringify({ ...payload, corpora: { [weaveMode]: corpus } }))
-    } catch {} // still over — reweave on next visit instead
-  }
+  // IndexedDB, where the boot path reads from — localStorage's ~5MB quota
+  // couldn't hold the corpora anyway
+  idbSet(STORE, { seeds, corpora, ask, flags, intent, aiWhy }).catch(() => {}) // reweave on next visit instead
 }
 
 let seeds: Work[] = []
@@ -1091,6 +1085,7 @@ $('export-json').onclick = () => {
 
 // --- remember the weave ---
 ;(async () => {
+  localStorage.removeItem(STORE) // stale megabytes from when saveStore wrote here
   try {
     const saved = await idbGet(STORE)
     if (saved?.corpora) {
@@ -1111,8 +1106,7 @@ $('export-json').onclick = () => {
 
   // a shared link's seeds win over whatever this browser had woven before
   const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
-  const linkedAsk = (location.hash.match(/[#&]a=(canon|groundwork|since|now)/)?.[1] ??
-    { roots: 'groundwork', shoots: 'since' }[location.hash.match(/[#&]m=(roots|shoots)/)?.[1] ?? '']) as
+  const linkedAsk = location.hash.match(/[#&]a=(canon|groundwork|since|now)/)?.[1] as
     | Ask
     | undefined
   if (linkedAsk && linkedAsk !== ask) {
@@ -1127,7 +1121,9 @@ $('export-json').onclick = () => {
       seeds = []
       for (const id of linked) seeds.push(await resolveSeed(id))
       renderChips()
-      weaveBtn.click()
+      // no autoweave: the harvest is the expensive part, and it would spend the
+      // link recipient's API budget before they've even seen the seeds
+      status(`${seeds.length} seed${seeds.length === 1 ? '' : 's'} from link — weave when ready`)
     } catch (err) {
       status(err instanceof Error ? err.message : String(err), true)
     }

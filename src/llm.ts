@@ -24,8 +24,9 @@ export const setModel = (m: string) => (m ? localStorage.setItem(MODEL_KEY, m) :
 
 async function ask(prompt: string): Promise<string> {
   let err = new Error('AI request failed')
-  // the user's chosen model goes first; the free list stays as the safety net
-  const models = getModel() ? [getModel(), ...MODELS] : MODELS
+  // the user's chosen model goes first, then the last model that answered —
+  // so a dead entry at the top of the free list isn't re-tried on every call
+  const models = [...new Set([getModel(), lastModel, ...MODELS].filter(Boolean))]
   for (const model of models) {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
