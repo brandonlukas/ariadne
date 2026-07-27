@@ -113,10 +113,12 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
 
   // every id met in the seed neighborhood — refs, citers, heavy co-citations
   const seen = new Set<string>()
-  // co-citation: how often each paper is cited alongside a seed by the seed's
-  // own citers — the only signal that reaches true contemporaries, which often
-  // share no direct edge with the seed (concurrent work can't cite it)
-  const cocite = new Map<string, number>()
+  // co-citation: papers cited alongside a seed by a tenth of its sampled
+  // citers earn neighborhood membership — the only signal that reaches true
+  // contemporaries, which often share no direct edge with the seed. The bar is
+  // relative per seed: an absolute one would silently never fire for niche
+  // seeds with few citers.
+  const coEarned = new Map<string, number>()
 
   for (let i = 0; i < seeds.length; i++) {
     const s = seeds[i]
@@ -137,19 +139,21 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
         citers.add(w.id)
       }
     }
+    const co = new Map<string, number>()
     for (const id of citers) {
       seen.add(id)
-      for (const r of pool.get(id)!.refs) if (r !== s.id) cocite.set(r, (cocite.get(r) ?? 0) + 1)
+      for (const r of pool.get(id)!.refs) if (r !== s.id) co.set(r, (co.get(r) ?? 0) + 1)
     }
+    const bar = Math.max(5, Math.ceil(citers.size * 0.1))
+    for (const [id, n] of co) if (n >= bar) coEarned.set(id, (coEarned.get(id) ?? 0) + 1)
   }
 
   const seedIds = new Set(seeds.map((s) => s.id))
 
-  // heavy co-citation admits a paper to the candidate pool even with zero
-  // direct seed edges — the only route to true contemporaries (capped below
-  // what two direct links buy, so peers never outrank bridges)
-  const earned = (id: string) => Math.min(2, Math.floor((cocite.get(id) ?? 0) / 15))
-  for (const [id] of cocite) if (earned(id) && !seedIds.has(id)) seen.add(id)
+  // co-citation credit is capped below what two direct links buy, so peers
+  // never outrank true bridges
+  const earned = (id: string) => Math.min(2, coEarned.get(id) ?? 0)
+  for (const [id] of coEarned) if (!seedIds.has(id)) seen.add(id)
 
   // fetch every candidate we only know as a reference id — unfetched refs rank
   // at zero, which silently dropped the seeds' actual contemporaries (SwinIR,
