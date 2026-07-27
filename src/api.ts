@@ -28,17 +28,31 @@ const CITERS_PER_SEED = 50
 const short = (url: string) => url.slice(url.lastIndexOf('/') + 1)
 export const stripDoi = (s: string) => s.replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
 
-async function getJson(path: string): Promise<any> {
+// session-lived caches: identical requests are answered once (mode switches
+// and reweaves re-ask mostly the same questions), and every paper ever parsed
+// is remembered so batch fetches only request genuinely new ids. A page reload
+// clears both — that is the freshness story, and it's enough.
+const urlCache = new Map<string, Promise<any>>()
+const workCache = new Map<string, Work>()
+
+function getJson(path: string): Promise<any> {
   const url = `${API}${path}${path.includes('?') ? '&' : '?'}mailto=${MAILTO}`
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url)
-    if (res.status === 429 && attempt < 2) {
-      await new Promise((r) => setTimeout(r, 1500))
-      continue
+  const hit = urlCache.get(url)
+  if (hit) return hit
+  const p = (async () => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(url)
+      if (res.status === 429 && attempt < 2) {
+        await new Promise((r) => setTimeout(r, 1500))
+        continue
+      }
+      if (!res.ok) throw new Error(`OpenAlex returned ${res.status}`)
+      return res.json()
     }
-    if (!res.ok) throw new Error(`OpenAlex returned ${res.status}`)
-    return res.json()
-  }
+  })()
+  urlCache.set(url, p)
+  p.catch(() => urlCache.delete(url)) // failures may retry fresh
+  return p
 }
 
 function deInvert(inv: Record<string, number[]> | null): string | null {
@@ -64,7 +78,7 @@ function parseWork(j: any): Work {
     .filter((c: any) => c.year >= thisYear - 2)
     .reduce((s: number, c: any) => s + c.cited_by_count, 0)
   const arxivId = findArxivId(j)
-  return {
+  const w: Work = {
     id: short(j.id),
     title: j.display_name ?? '(untitled)',
     year: j.publication_year ?? 0,
@@ -79,6 +93,8 @@ function parseWork(j: any): Work {
     pdf: j.best_oa_location?.pdf_url ?? (arxivId ? `https://arxiv.org/pdf/${arxivId}` : null),
     isSeed: false,
   }
+  workCache.set(w.id, w)
+  return w
 }
 
 const arxOf = (q: string) =>
@@ -127,6 +143,10 @@ export async function buildCorpus(
   const coEarned = new Map<string, number>()
 
   const fetchUnknown = async (label: string) => {
+    for (const id of seen) {
+      const known = workCache.get(id)
+      if (known && !pool.has(id)) pool.set(id, known)
+    }
     const unknown = [...seen].filter((id) => !seedIds.has(id) && !pool.has(id))
     for (let i = 0; i < unknown.length; i += 50) {
       onStatus(`${label} ${Math.min(i + 50, unknown.length)}/${unknown.length}…`)
