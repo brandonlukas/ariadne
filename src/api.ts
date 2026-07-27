@@ -42,10 +42,11 @@ function getJson(path: string): Promise<any> {
   const p = (async () => {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(url)
-      if (res.status === 429 && attempt < 2) {
-        await new Promise((r) => setTimeout(r, 1500))
+      if (res.status === 429 && attempt < 3) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
         continue
       }
+      if (res.status === 429) throw new Error('OpenAlex is rate-limiting (429) — wait a minute, then reweave')
       if (!res.ok) throw new Error(`OpenAlex returned ${res.status}`)
       return res.json()
     }

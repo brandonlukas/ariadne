@@ -31,7 +31,34 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v14' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v15' // bump when the cached corpus shape or harvest logic changes
+
+// IndexedDB: localStorage's ~5MB quota couldn't hold three uncapped corpora,
+// which silently dropped woven directions on refresh and forced refetches
+let dbP: Promise<IDBDatabase> | null = null
+const idb = () =>
+  (dbP ??= new Promise((res, rej) => {
+    const r = indexedDB.open('ariadne', 1)
+    r.onupgradeneeded = () => r.result.createObjectStore('kv')
+    r.onsuccess = () => res(r.result)
+    r.onerror = () => rej(r.error)
+  }))
+const idbGet = async (k: string): Promise<any> => {
+  const d = await idb()
+  return new Promise((res, rej) => {
+    const q = d.transaction('kv').objectStore('kv').get(k)
+    q.onsuccess = () => res(q.result)
+    q.onerror = () => rej(q.error)
+  })
+}
+const idbSet = async (k: string, v: unknown): Promise<void> => {
+  const d = await idb()
+  return new Promise((res, rej) => {
+    const q = d.transaction('kv', 'readwrite').objectStore('kv').put(v, k)
+    q.onsuccess = () => res()
+    q.onerror = () => rej(q.error)
+  })
+}
 
 function saveStore() {
   const payload = { seeds, corpora, ask, flags, intent, aiWhy }
@@ -203,7 +230,7 @@ function renderChips() {
     }),
   )
   weaveBtn.disabled = seeds.length === 0 || (seedKey() === wovenKey && !!corpora[weaveMode])
-  if (seeds.length === 0) localStorage.removeItem(STORE)
+  if (seeds.length === 0) idbSet(STORE, null).catch(() => {})
 }
 
 const pickerEl = $<HTMLUListElement>('picker')
@@ -1040,38 +1067,38 @@ $('export-json').onclick = () => {
 }
 
 // --- remember the weave ---
-try {
-  const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null')
-  if (saved?.corpora) {
-    seeds = saved.seeds
-    corpora = saved.corpora
-    ask = saved.ask ?? 'canon'
+;(async () => {
+  try {
+    const saved = await idbGet(STORE)
+    if (saved?.corpora) {
+      seeds = saved.seeds
+      corpora = saved.corpora
+      ask = saved.ask ?? 'canon'
+      weaveMode = ASKS[ask].mode
+      corpus = corpora[weaveMode] ?? null
+      flags = saved.flags ?? {}
+      intent = saved.intent ?? ''
+      aiWhy = saved.aiWhy ?? {}
+      wovenKey = seedKey()
+      renderChips()
+      if (corpus) present()
+      maybeInferIntent() // a key may be set while the last session's intent isn't
+    }
+  } catch {} // corrupt store — start fresh
+
+  // a shared link's seeds win over whatever this browser had woven before
+  const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
+  const linkedAsk = (location.hash.match(/[#&]a=(canon|groundwork|since|now)/)?.[1] ??
+    { roots: 'groundwork', shoots: 'since' }[location.hash.match(/[#&]m=(roots|shoots)/)?.[1] ?? '']) as
+    | Ask
+    | undefined
+  if (linkedAsk && linkedAsk !== ask) {
+    ask = linkedAsk
     weaveMode = ASKS[ask].mode
     corpus = corpora[weaveMode] ?? null
-    flags = saved.flags ?? {}
-    intent = saved.intent ?? ''
-    aiWhy = saved.aiWhy ?? {}
-    wovenKey = seedKey()
-    renderChips()
     if (corpus) present()
-    maybeInferIntent() // a key may be set while the last session's intent isn't
   }
-} catch {} // corrupt store — start fresh
-
-// a shared link's seeds win over whatever this browser had woven before
-const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
-const linkedAsk = (location.hash.match(/[#&]a=(canon|groundwork|since|now)/)?.[1] ??
-  { roots: 'groundwork', shoots: 'since' }[location.hash.match(/[#&]m=(roots|shoots)/)?.[1] ?? '']) as
-  | Ask
-  | undefined
-if (linkedAsk && linkedAsk !== ask) {
-  ask = linkedAsk
-  weaveMode = ASKS[ask].mode
-  corpus = corpora[weaveMode] ?? null
-  if (corpus) present()
-}
-if (linked.length && ([...linked].sort().join('|') !== wovenKey || !corpora[weaveMode])) {
-  ;(async () => {
+  if (linked.length && ([...linked].sort().join('|') !== wovenKey || !corpora[weaveMode])) {
     status('Resolving linked seeds…')
     try {
       seeds = []
@@ -1081,5 +1108,5 @@ if (linked.length && ([...linked].sort().join('|') !== wovenKey || !corpora[weav
     } catch (err) {
       status(err instanceof Error ? err.message : String(err), true)
     }
-  })()
-}
+  }
+})()
