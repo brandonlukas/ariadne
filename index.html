@@ -189,7 +189,8 @@
 
     #toolbar { position: absolute; right: 16px; top: 14px; display: none; gap: 8px; }
     .pill { border: 1px solid var(--hairline); background: var(--paper); border-radius: 999px;
-      padding: 7px 15px; font-size: 12px; color: var(--ink); text-decoration: none; }
+      padding: 7px 15px; font-size: 12px; color: var(--ink); text-decoration: none;
+      white-space: nowrap; }
     .pill:hover { border-color: var(--faint); }
 
     #empty { position: absolute; inset: 0; display: flex; align-items: center;
@@ -251,7 +252,7 @@
     .meter .track i { display: block; height: 100%; background: var(--ink); }
     .meter em { font-style: normal; width: 32px; text-align: right; color: var(--faint);
       font-variant-numeric: tabular-nums; }
-    #panel .pills { display: flex; gap: 8px; margin-top: 22px; }
+    #panel .pills { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
     button:focus-visible, a:focus-visible, li:focus-visible, input:focus-visible {
       outline: 2px solid var(--thread); outline-offset: 2px; }
   </style>

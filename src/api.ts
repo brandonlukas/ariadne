@@ -198,6 +198,22 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
     for (let i = candidates.length - 1; i >= 0 && extra.length; i--)
       if (!isRecent(candidates[i])) candidates.splice(i, 1, extra.shift()!)
   }
+  // every lens owns a slice of the cut — without one for strict chronology,
+  // brand-new zero-citation work always loses the traction contest and the
+  // "newest" rank could only show survivors of other lenses' criteria
+  const fresh = ranked
+    .filter((id) => !candidates.includes(id) && (pool.get(id)?.year ?? 0) >= thisYear - 1)
+    .slice(0, 10)
+  for (const id of fresh)
+    for (let i = candidates.length - 1; i >= 0; i--) {
+      const c = candidates[i]
+      if ((pool.get(c)?.year ?? 0) < thisYear - 1 && directOf(c) < 2) {
+        candidates.splice(i, 1)
+        candidates.push(id)
+        break
+      }
+    }
+
   // papers directly touching 2+ seeds are the rarest, most intent-relevant
   // finds in the graph — they must never lose the cut to co-cited crowds
   for (const id of ranked)
