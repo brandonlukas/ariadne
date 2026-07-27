@@ -1,4 +1,4 @@
-import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
+import { buildCorpus, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
 import { getKey, getLastModel, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
@@ -164,6 +164,7 @@ aiToggle.onclick = () => {
   if (!aiFields.hidden) {
     aiKeyEl.value = getKey()
     aiModelEl.value = getModel()
+    alexKeyEl.value = getAlexKey()
     aiKeyEl.focus()
   }
 }
@@ -174,6 +175,8 @@ aiKeyEl.onchange = () => {
   maybeInferIntent()
 }
 aiModelEl.onchange = () => setModel(aiModelEl.value.trim())
+const alexKeyEl = $<HTMLInputElement>('alex-key')
+alexKeyEl.onchange = () => setAlexKey(alexKeyEl.value.trim())
 $('ai-off').onclick = () => {
   setKey('')
   setModel('')

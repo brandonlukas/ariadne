@@ -27,7 +27,10 @@
     <p><b>OpenAlex</b> — every weave queries the OpenAlex API directly from your browser for
     paper metadata. Those requests include a maintainer contact email (per OpenAlex's polite-use
     policy) — not your identity. OpenAlex sees the paper IDs and searches you request, from
-    your IP address, under <a href="https://openalex.org">their terms</a>.</p>
+    your IP address, under <a href="https://openalex.org">their terms</a>. If you add your own
+    OpenAlex API key, it is stored in your browser's localStorage and sent only to OpenAlex
+    with your requests, which then count against your OpenAlex account budget instead of the
+    shared anonymous one.</p>
     <p><b>Publisher image hosts</b> — the gallery view loads figure images directly from
     arXiv/ar5iv, Springer Nature, PLOS, bioRxiv/medRxiv, and eLife. Like any embedded image on
     the web, those hosts see your IP request the file.</p>

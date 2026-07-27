@@ -25,6 +25,13 @@ const SELECT =
   'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
 const CITERS_PER_SEED = 50
 
+// bring-your-own OpenAlex key: anonymous use shares a $0.10/day per-IP budget;
+// a free key (openalex.org/settings/api) is $1/day — ten times the room
+const ALEX_KEY = 'ariadne:alex-key'
+export const getAlexKey = () => localStorage.getItem(ALEX_KEY) ?? ''
+export const setAlexKey = (k: string) =>
+  k ? localStorage.setItem(ALEX_KEY, k) : localStorage.removeItem(ALEX_KEY)
+
 const short = (url: string) => url.slice(url.lastIndexOf('/') + 1)
 export const stripDoi = (s: string) => s.replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
 
@@ -36,7 +43,8 @@ const urlCache = new Map<string, Promise<any>>()
 const workCache = new Map<string, Work>()
 
 function getJson(path: string): Promise<any> {
-  const url = `${API}${path}${path.includes('?') ? '&' : '?'}mailto=${MAILTO}`
+  const key = getAlexKey()
+  const url = `${API}${path}${path.includes('?') ? '&' : '?'}mailto=${MAILTO}${key ? `&api_key=${key}` : ''}`
   const hit = urlCache.get(url)
   if (hit) return hit
   const p = (async () => {
@@ -46,7 +54,12 @@ function getJson(path: string): Promise<any> {
         await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
         continue
       }
-      if (res.status === 429) throw new Error('OpenAlex is rate-limiting (429) — wait a minute, then reweave')
+      if (res.status === 429)
+        throw new Error(
+          getAlexKey()
+            ? 'OpenAlex is rate-limiting (429) — daily budget likely spent; it refills daily'
+            : 'OpenAlex is rate-limiting (429) — a free API key (openalex.org/settings/api, paste it under the ● chip) gives 10× the daily budget',
+        )
       if (!res.ok) throw new Error(`OpenAlex returned ${res.status}`)
       return res.json()
     }
