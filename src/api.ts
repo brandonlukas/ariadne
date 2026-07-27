@@ -23,7 +23,6 @@ const API = 'https://api.openalex.org'
 const MAILTO = 'brandonlukas@gmail.com'
 const SELECT =
   'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
-const MAX_NODES = 200
 const CITERS_PER_SEED = 50
 
 const short = (url: string) => url.slice(url.lastIndexOf('/') + 1)
@@ -192,69 +191,13 @@ export async function buildCorpus(
     await fetchUnknown('Tracing the roots')
   }
 
-  // earned credit is capped below what two direct links buy, so peers and
-  // grand-ancestors never outrank true bridges
-  const earned = (id: string) => Math.min(2, coEarned.get(id) ?? 0)
-
-  // direct links counted from actual citation data, not pull membership — a
-  // paper citing both seeds may surface in only one seed's pulls (StruNet did)
-  const refOfSeed = new Map<string, number>()
-  for (const s of seeds) for (const r of s.refs) refOfSeed.set(r, (refOfSeed.get(r) ?? 0) + 1)
-  const directOf = (id: string) =>
-    (refOfSeed.get(id) ?? 0) + (pool.get(id)?.refs.filter((r) => seedIds.has(r)).length ?? 0)
-  const corro = (id: string) => directOf(id) + earned(id)
-
-  // tiebreak on citations per year, not lifetime count — else age wins every tie
-  const perYear = (id: string) => {
-    const w = pool.get(id)
-    return w ? w.citedBy / Math.max(1, thisYear - w.year + 1) : 0
-  }
-  const ranked = [...seen]
-    .filter((id) => !seedIds.has(id))
-    .sort((a, b) => corro(b) - corro(a) || perYear(b) - perYear(a))
-  const cutN = MAX_NODES - seeds.length
-  const candidates = ranked.slice(0, cutN)
-  if (mode !== 'roots') {
-    // recency quota: the cut otherwise re-drops the young low-cite papers the
-    // frontier pull just harvested — reserve a quarter of the slots for them.
-    // (roots is a closed world: ancestry has no recency to protect)
-    const isRecent = (id: string) => (pool.get(id)?.year ?? 0) >= thisYear - 2
-    const quota = Math.floor(cutN * 0.25)
-    const need = quota - candidates.filter(isRecent).length
-    if (need > 0) {
-      const extra = ranked.slice(cutN).filter(isRecent).slice(0, need)
-      for (let i = candidates.length - 1; i >= 0 && extra.length; i--)
-        if (!isRecent(candidates[i])) candidates.splice(i, 1, extra.shift()!)
-    }
-    // every lens owns a slice of the cut — without one for strict chronology,
-    // brand-new zero-citation work always loses the traction contest and the
-    // "newest" rank could only show survivors of other lenses' criteria
-    const fresh = ranked
-      .filter((id) => !candidates.includes(id) && (pool.get(id)?.year ?? 0) >= thisYear - 1)
-      .slice(0, 10)
-    for (const id of fresh)
-      for (let i = candidates.length - 1; i >= 0; i--) {
-        const c = candidates[i]
-        if ((pool.get(c)?.year ?? 0) < thisYear - 1 && directOf(c) < 2) {
-          candidates.splice(i, 1)
-          candidates.push(id)
-          break
-        }
-      }
-  }
-
-  // papers directly touching 2+ seeds are the rarest, most intent-relevant
-  // finds in the graph — they must never lose the cut to co-cited crowds
-  for (const id of ranked)
-    if (directOf(id) >= 2 && !candidates.includes(id))
-      for (let i = candidates.length - 1; i >= 0; i--)
-        if (directOf(candidates[i]) < 2) {
-          candidates.splice(i, 1)
-          candidates.push(id)
-          break
-        }
-
-  const keep = new Set([...seedIds, ...candidates])
+  // no cut. Everything the harvest gathered stays: every candidate was already
+  // fetched, so the old 200-cap was a layout budget masquerading as curation.
+  // Admission itself (complete bibliographies, deliberate citer samples,
+  // relative co-citation bars) is the curation; ranking decides reading order.
+  // ponytail: the constellation may chug past ~1500 nodes — tighten
+  // CITERS_PER_SEED if huge seed sets ever hurt.
+  const keep = new Set([...seedIds, ...seen])
   const works = [...pool.values()].filter((w) => keep.has(w.id))
   const idx = new Map(works.map((w, i) => [w.id, i]))
   const edges: [number, number][] = []

@@ -31,12 +31,18 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v12' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v13' // bump when the cached corpus shape or harvest logic changes
 
 function saveStore() {
+  const payload = { seeds, corpora, mode: weaveMode, flags, intent, aiWhy }
   try {
-    localStorage.setItem(STORE, JSON.stringify({ seeds, corpora, mode: weaveMode, flags, intent, aiWhy }))
-  } catch {} // over quota — reweave on next visit instead
+    localStorage.setItem(STORE, JSON.stringify(payload))
+  } catch {
+    // uncapped corpora can outgrow the quota — keep at least the active mode
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ ...payload, corpora: { [weaveMode]: corpus } }))
+    } catch {} // still over — reweave on next visit instead
+  }
 }
 
 let seeds: Work[] = []
