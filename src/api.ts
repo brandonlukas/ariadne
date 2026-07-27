@@ -135,6 +135,22 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
   }
 
   const seedIds = new Set(seeds.map((s) => s.id))
+
+  // fetch every candidate we only know as a reference id — unfetched refs rank
+  // at zero, which silently dropped the seeds' actual contemporaries (SwinIR,
+  // MPRNet, IPT never made the corpus) while 50-citation citers walked in
+  const unknown = [...links.keys()].filter((id) => !seedIds.has(id) && !pool.has(id))
+  for (let i = 0; i < unknown.length; i += 50) {
+    onStatus(`Reading references ${Math.min(i + 50, unknown.length)}/${unknown.length}…`)
+    const j = await getJson(
+      `/works?filter=openalex:${unknown.slice(i, i + 50).join('|')}&per-page=50&select=${SELECT}`,
+    )
+    for (const raw of j.results ?? []) {
+      const w = parseWork(raw)
+      pool.set(w.id, w)
+    }
+  }
+
   // tiebreak on citations per year, not lifetime count — else age wins every tie
   const perYear = (id: string) => {
     const w = pool.get(id)
@@ -155,18 +171,6 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
     const extra = ranked.slice(cutN).filter(isRecent).slice(0, need)
     for (let i = candidates.length - 1; i >= 0 && extra.length; i--)
       if (!isRecent(candidates[i])) candidates.splice(i, 1, extra.shift()!)
-  }
-
-  const toFetch = candidates.filter((id) => !pool.has(id))
-  for (let i = 0; i < toFetch.length; i += 50) {
-    onStatus(`Fetching papers ${Math.min(i + 50, toFetch.length)}/${toFetch.length}…`)
-    const j = await getJson(
-      `/works?filter=openalex:${toFetch.slice(i, i + 50).join('|')}&per-page=50&select=${SELECT}`,
-    )
-    for (const raw of j.results ?? []) {
-      const w = parseWork(raw)
-      pool.set(w.id, w)
-    }
   }
 
   const keep = new Set([...seedIds, ...candidates])
