@@ -8,7 +8,7 @@ export interface Metrics {
 // seed-era peers out-collect every new paper in absolute recent citations, so
 // without this gate they top "catch-up" too — but only papers published after
 // the seeds can be developments since them. Seeds themselves are exempt.
-export type Weights = { f: number; b: number; m: number; r: number; era: number }
+type Weights = { f: number; b: number; m: number; r: number; era: number }
 // intent presets: canon = committee-exam classics, catchup = where the field
 // went since the seeds, pulse = the newest work closest to the seeds
 export const PRESETS: Record<'canon' | 'catchup' | 'pulse' | 'loadbearing', Weights> = {

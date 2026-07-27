@@ -67,7 +67,6 @@ const seedKey = () => seeds.map((s) => s.id).sort().join('|')
 let corpus: Corpus | null = null
 let metrics: Metrics[] = []
 let order: number[] = []
-let seedLinks: number[] = []
 let byId = new Map<string, number>()
 let yearSpan: [number, number] = [0, 0]
 
@@ -315,7 +314,6 @@ function present() {
   updateRankRow()
   metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset], weaveMode === 'roots')
   byId = new Map(corpus.works.map((w, i) => [w.id, i]))
-  seedLinks = metrics.map((m) => m.seedLinks)
   computeOrder()
   $<HTMLInputElement>('find').value = ''
   needle = ''
@@ -377,8 +375,7 @@ document.querySelectorAll<HTMLButtonElement>('#preset button[data-p]').forEach((
     if (rank !== 'newest' && rank !== 'era' && rank !== preset) {
       preset = rank
       metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset], weaveMode === 'roots')
-      seedLinks = metrics.map((m) => m.seedLinks)
-      computeOrder()
+          computeOrder()
       const labeled = new Set(order.slice(0, 14))
       renderer.restyle(
         new Map(
@@ -463,7 +460,7 @@ let lens: { kind: 'venue' | 'author'; name: string } | null = null
 
 function matches(w: Work): boolean {
   if (flags[w.id] === 'hide') return false
-  if (bridgesOnly && !w.isSeed && (seedLinks[byId.get(w.id)!] ?? 0) < 2) return false
+  if (bridgesOnly && !w.isSeed && (metrics[byId.get(w.id)!]?.seedLinks ?? 0) < 2) return false
   if (brushRange && (w.year < brushRange[0] || w.year > brushRange[1])) return false
   if (needle && !`${w.title} ${w.authors.join(' ')} ${w.venue ?? ''}`.toLowerCase().includes(needle)) return false
   if (lens) return lens.kind === 'venue' ? w.venue === lens.name : w.authors.includes(lens.name)
@@ -652,7 +649,7 @@ function renderList() {
       const body = el('div', 'body')
       const meta = el('div', 'meta', `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) meta.append(el('span', 'seed-mark', ' — seed'))
-      if (!w.isSeed && seedLinks[i] >= 2) meta.append(el('span', 'seed-mark', ` — bridges ${seedLinks[i]} seeds`))
+      if (!w.isSeed && metrics[i].seedLinks >= 2) meta.append(el('span', 'seed-mark', ` — bridges ${metrics[i].seedLinks} seeds`))
       if (flags[w.id] === 'star') meta.append(el('span', 'seed-mark', ' ★'))
       body.append(el('div', 'title', w.title), meta)
       if (w.venue) {
@@ -814,7 +811,7 @@ function renderGallery() {
       }
       const m = el('div', 'm', `${rankOf.get(i)} · ${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) m.append(el('span', 'seed', ' — seed'))
-      if (!w.isSeed && seedLinks[i] >= 2) m.append(el('span', 'seed', ` — bridges ${seedLinks[i]}`))
+      if (!w.isSeed && metrics[i].seedLinks >= 2) m.append(el('span', 'seed', ` — bridges ${metrics[i].seedLinks}`))
       if (flags[w.id] === 'star') m.append(el('span', 'seed', ' ★'))
       card.append(fig, el('div', 't', w.title), m)
       if (w.venue) {
@@ -830,10 +827,10 @@ function renderGallery() {
 
 // --- details panel ---
 
-function why(w: Work, m: Metrics, links: number): string {
+function why(w: Work, m: Metrics): string {
   if (w.isSeed) return 'One of your seed papers — the thread starts here.'
   const bits: string[] = []
-  if (links >= 2) bits.push(`directly linked to ${links} of your seeds`)
+  if (m.seedLinks >= 2) bits.push(`directly linked to ${m.seedLinks} of your seeds`)
   // components are rank-normalized, so these thresholds mean "top ~15%"
   if (m.parts.foundational > 0.85) bits.push('structurally foundational in this neighborhood')
   if (m.parts.bridge > 0.85) bits.push('bridges otherwise-separate clusters')
@@ -863,10 +860,10 @@ function openDetails(i: number) {
   const ai = aiWhy[w.id]
   whyEl.append(
     el('b', '', ai ? '✦ why it matters for your thread' : 'why it matters'),
-    document.createTextNode(' — ' + (ai ?? why(w, m, seedLinks[i]))),
+    document.createTextNode(' — ' + (ai ?? why(w, m))),
   )
   if (!ai && getKey() && intent) {
-    whyEl.append(el('span', 'seed-mark', ' ✦…'))
+    whyEl.append(el('span', '', ' ✦…'))
     whyForIntent(intent, w, m, corpus.works.filter((x) => x.isSeed).map((x) => x.title))
       .then((t) => {
         aiWhy[w.id] = t
@@ -988,7 +985,7 @@ $('export-md').onclick = () => {
     if (w.doi) lines.push(`- DOI: ${w.doi}`)
     if (w.pdf) lines.push(`- PDF (open access): ${w.pdf}`)
     lines.push(`- Score: ${m.score.toFixed(2)} (foundational ${m.parts.foundational.toFixed(2)}, bridge ${m.parts.bridge.toFixed(2)}, momentum ${m.parts.momentum.toFixed(2)}, relevance ${m.parts.relevance.toFixed(2)})`)
-    lines.push(`- Why it matters: ${why(w, m, seedLinks[i])}`)
+    lines.push(`- Why it matters: ${why(w, m)}`)
     if (w.abstract) lines.push(`\n> ${w.abstract}`)
     lines.push('')
   })
@@ -1031,7 +1028,7 @@ $('export-json').onclick = () => {
         starred: flags[w.id] === 'star',
         score: metrics[i].score,
         parts: metrics[i].parts,
-        why: why(w, metrics[i], seedLinks[i]),
+        why: why(w, metrics[i]),
       }
     })
   download('ariadne-corpus.json', JSON.stringify(data, null, 2), 'application/json')
