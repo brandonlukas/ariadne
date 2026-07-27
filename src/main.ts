@@ -82,7 +82,7 @@ const ASKS: Record<Ask, { mode: WeaveMode; preset: keyof typeof PRESETS; sort: '
   now: { mode: 'shoots', preset: 'catchup', sort: 'year' },
 }
 let ask: Ask = 'canon'
-let oldestFirst = false // groundwork's story toggle: chronological ancestry
+let oldestFirst = false // groundwork's order toggle: chronological ancestry
 let weaveMode: WeaveMode = 'both'
 let corpora: Partial<Record<WeaveMode, Corpus>> = {} // one seed set, up to three instruments
 let bridgesOnly = false
@@ -145,7 +145,6 @@ function status(msg: string, isError = false) {
 
 // --- ai: bring-your-own free key ---
 
-const aiKeyEl = $<HTMLInputElement>('ai-key')
 const aiModelEl = $<HTMLInputElement>('ai-model')
 const aiFields = $('ai-fields')
 const aiToggle = $<HTMLButtonElement>('ai-toggle')
@@ -153,40 +152,59 @@ $('ai-models').append(...MODELS.map((m) => Object.assign(el('option'), { value: 
 const aiLabel = () => {
   const on = !!getKey()
   const model = getLastModel().split('/').pop()?.replace(':free', '')
-  aiToggle.replaceChildren(
-    el('span', 'dot'),
-    document.createTextNode(on ? (model ? `ai · ${model}` : 'ai on') : 'ai off'),
-  )
+  $('ai-status').textContent = on ? (model ? `ai · ${model}` : 'ai on') : 'ai off'
+  $('alex-status').textContent = getAlexKey() ? 'openalex ✓' : 'openalex'
   aiToggle.classList.toggle('on', on)
 }
 aiToggle.onclick = () => {
   aiFields.hidden = !aiFields.hidden
-  if (!aiFields.hidden) {
-    aiKeyEl.value = getKey()
-    aiModelEl.value = getModel()
-    alexKeyEl.value = getAlexKey()
-    aiKeyEl.focus()
-  }
-}
-aiKeyEl.onchange = () => {
-  setKey(aiKeyEl.value.trim())
-  aiFields.hidden = true
-  aiLabel()
-  maybeInferIntent()
+  if (!aiFields.hidden) aiModelEl.value = getModel()
 }
 aiModelEl.onchange = () => setModel(aiModelEl.value.trim())
-const alexKeyEl = $<HTMLInputElement>('alex-key')
-alexKeyEl.onchange = () => setAlexKey(alexKeyEl.value.trim())
-$('ai-off').onclick = () => {
-  setKey('')
-  setModel('')
-  intent = ''
-  aiWhy = {} // forgetting the key also forgets what it generated
-  saveStore()
-  renderIntent()
-  aiFields.hidden = true
-  aiLabel()
+
+// a stored key renders as a masked chip with its own forget button; an empty one
+// renders as an input — on/off is the storage itself, no separate switch to drift
+function keyRow(slot: HTMLElement, placeholder: string, get: () => string, set: (k: string) => void, changed: () => void) {
+  const render = () => {
+    const k = get()
+    if (k) {
+      const chip = el('span', 'keychip')
+      chip.append(el('span', 'mask', '••••·' + k.slice(-4)))
+      const forget = el('button', 'forget', 'forget ×')
+      forget.type = 'button'
+      forget.onclick = () => {
+        set('')
+        render()
+        changed()
+      }
+      chip.append(forget)
+      slot.replaceChildren(chip)
+    } else {
+      const input = el('input')
+      input.type = 'password'
+      input.placeholder = placeholder
+      input.onchange = () => {
+        set(input.value.trim())
+        render()
+        changed()
+      }
+      slot.replaceChildren(input)
+    }
+  }
+  render()
 }
+keyRow($('ai-key-slot'), 'paste OpenRouter key — free at openrouter.ai', getKey, setKey, () => {
+  if (!getKey()) {
+    setModel('')
+    intent = ''
+    aiWhy = {} // forgetting the key also forgets what it generated
+    saveStore()
+    renderIntent()
+  }
+  aiLabel()
+  maybeInferIntent()
+})
+keyRow($('alex-key-slot'), 'paste OpenAlex key', getAlexKey, setAlexKey, aiLabel)
 aiLabel()
 
 function renderIntent() {
@@ -318,9 +336,9 @@ function syncAskUI() {
   document
     .querySelectorAll<HTMLButtonElement>('#preset button[data-a]')
     .forEach((x) => x.classList.toggle('on', x.dataset.a === ask))
-  const story = $('oldest')
-  story.hidden = ask !== 'groundwork'
-  story.classList.toggle('on', oldestFirst)
+  $('order-line').hidden = ask !== 'groundwork'
+  $('oldest').classList.toggle('on', oldestFirst)
+  $('order-score').classList.toggle('on', !oldestFirst)
 }
 
 document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((b) => {
@@ -359,12 +377,14 @@ document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((
   }
 })
 
-$<HTMLButtonElement>('oldest').onclick = () => {
-  oldestFirst = !oldestFirst
+const setOrder = (oldest: boolean) => {
+  oldestFirst = oldest
   syncAskUI()
   computeOrder()
   refreshViews()
 }
+$<HTMLButtonElement>('oldest').onclick = () => setOrder(true)
+$<HTMLButtonElement>('order-score').onclick = () => setOrder(false)
 
 // --- weave ---
 

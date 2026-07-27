@@ -78,8 +78,8 @@
     #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status.error { color: var(--thread); }
-    #ai { padding: 0 18px 6px 22px; }
-    #ai > button { background: none; border: none; padding: 0; font-size: 11px;
+    #ai { padding: 0 18px 6px 22px; font-size: 11px; }
+    #ai > button { background: none; border: none; padding: 0; font-size: 11px; width: 100%;
       color: var(--faint); display: flex; align-items: center; gap: 6px; }
     #ai > button:hover { color: var(--gray); }
     #ai > button.on { color: var(--gray); }
@@ -87,13 +87,26 @@
       flex-shrink: 0; }
     #ai > button.on .dot { background: var(--ok); box-shadow: 0 0 0 3px
       color-mix(in srgb, var(--ok) 18%, transparent); }
-    #ai-off { background: none; border: none; padding: 4px 0 0; font-size: 10.5px;
-      color: var(--faint); display: block; }
-    #ai-off:hover { color: var(--thread); }
-    #ai input { width: 100%; margin-top: 6px; background: var(--paper); color: var(--ink);
+    #alex-status { margin-left: auto; color: var(--faint); }
+    #ai .grp { margin-top: 10px; }
+    #ai .grp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--faint); }
+    #ai .grp-label i { font-style: normal; text-transform: none; letter-spacing: 0; }
+    #ai .row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+    #ai .row label { width: 34px; flex-shrink: 0; color: var(--gray); }
+    #ai .row .slot { flex: 1; min-width: 0; display: flex; }
+    #ai .row .slot > * { flex: 1; min-width: 0; }
+    #ai input { flex: 1; min-width: 0; background: var(--paper); color: var(--ink);
       border: 1px solid var(--hairline); border-radius: 999px; padding: 4px 10px;
       font: inherit; font-size: 11px; outline: none; }
     #ai input:focus { border-color: var(--faint); }
+    #ai .keychip { display: flex; align-items: center; border: 1px solid var(--hairline);
+      border-radius: 999px; padding: 3px 4px 3px 10px; background: var(--hover); }
+    #ai .keychip .mask { flex: 1; color: var(--gray); letter-spacing: 0.05em;
+      overflow: hidden; white-space: nowrap; }
+    #ai .keychip .forget { background: none; border: none; color: var(--faint);
+      font-size: 10.5px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+    #ai .keychip .forget:hover { color: var(--thread); background: var(--sel); }
     #intent-line { padding: 0 18px 10px 22px; font-size: 11.5px; font-style: italic;
       color: var(--gray); }
     #intent-line[hidden] { display: none; }
@@ -124,15 +137,27 @@
       color: var(--ink); outline: none; }
     #find::placeholder { color: var(--faint); }
     #find:focus { border-color: var(--faint); }
-    #preset { display: flex; gap: 8px; align-items: center; padding: 0 18px 8px 22px;
-      font-size: 11px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
+    #list-tools #bridges { background: none; border: 1px solid var(--hairline);
+      border-radius: 999px; padding: 2px 10px; font-size: 11px; color: var(--gray);
+      white-space: nowrap; }
+    #list-tools #bridges:hover { border-color: var(--faint); }
+    #list-tools #bridges.on { background: var(--thread); border-color: var(--thread); color: #fff; }
+    #list-tools #bridges[hidden] { display: none; }
+    #preset { padding: 0 18px 8px 22px; font-size: 11px; }
     #preset[hidden] { display: none; }
-    #preset span { color: var(--faint); letter-spacing: 0.04em; }
-    #preset button { background: none; border: none; padding: 0; color: var(--faint); }
-    #preset button.on { color: var(--thread); }
-    #preset button:hover { color: var(--gray); }
-    #preset #bridges { margin-left: auto; }
-    #preset #bridges[hidden] { display: none; }
+    #preset .seg { display: inline-flex; border: 1px solid var(--hairline);
+      border-radius: 999px; padding: 2px; gap: 2px; }
+    #preset .seg button { background: none; border: none; border-radius: 999px;
+      padding: 2px 10px; font-size: 11px; color: var(--gray); }
+    #preset .seg button:hover { color: var(--ink); }
+    #preset .seg button.on { background: var(--sel); color: var(--ink); }
+    #order-line { margin-top: 6px; padding-left: 4px; color: var(--faint);
+      display: flex; gap: 10px; align-items: baseline; }
+    #order-line[hidden] { display: none; }
+    #order-line button { background: none; border: none; padding: 0; font-size: 11px;
+      color: var(--faint); }
+    #order-line button.on { color: var(--thread); }
+    #order-line button:hover { color: var(--gray); }
 
     #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
       border-top: 1px solid var(--hairline); }
@@ -289,13 +314,18 @@
         <button id="weave" disabled>weave the graph</button>
         <div id="status"></div>
         <div id="ai">
-          <button id="ai-toggle">✦ ai off</button>
+          <button id="ai-toggle"><span class="dot"></span><span id="ai-status">ai off</span><span id="alex-status"></span></button>
           <div id="ai-fields" hidden>
-            <input id="ai-key" type="password" placeholder="OpenRouter key — free at openrouter.ai" />
-            <input id="ai-model" list="ai-models" placeholder="model — blank picks a free one" />
-            <datalist id="ai-models"></datalist>
-            <input id="alex-key" type="password" placeholder="OpenAlex key (optional) — 10× the daily budget" />
-            <button id="ai-off">turn off — forget key</button>
+            <div class="grp">
+              <div class="grp-label">assistant · openrouter <i>— reads your seeds, explains papers</i></div>
+              <div class="row"><label>key</label><span class="slot" id="ai-key-slot"></span></div>
+              <div class="row"><label>model</label><input id="ai-model" list="ai-models" placeholder="blank picks a free one" /></div>
+              <datalist id="ai-models"></datalist>
+            </div>
+            <div class="grp">
+              <div class="grp-label">data · openalex <i>— optional, 10× the daily budget</i></div>
+              <div class="row"><label>key</label><span class="slot" id="alex-key-slot"></span></div>
+            </div>
           </div>
         </div>
         <div id="intent-line" hidden></div>
@@ -307,15 +337,20 @@
         </div>
         <div id="list-tools" hidden>
           <input id="find" placeholder="filter…" />
+          <button id="bridges" hidden title="only papers citing several of your seeds">⋈ bridges</button>
         </div>
         <div id="preset" hidden>
-          <span>ask</span>
-          <button data-a="canon" class="on" title="the influence map — what carries this literature">canon</button>
-          <button data-a="groundwork" title="what your seeds are built on — ancestry, two hops deep">groundwork</button>
-          <button data-a="since" title="what came after your seeds">since</button>
-          <button data-a="now" title="the newest work in the conversation">now</button>
-          <button id="oldest" hidden title="chronological, oldest first — the story in order">story</button>
-          <button id="bridges" hidden title="only papers citing several of your seeds">⋈ bridges</button>
+          <div class="seg">
+            <button data-a="canon" class="on" title="the influence map — what carries this literature">canon</button>
+            <button data-a="groundwork" title="what your seeds are built on — ancestry, two hops deep">groundwork</button>
+            <button data-a="since" title="what came after your seeds">since</button>
+            <button data-a="now" title="the newest work in the conversation">now</button>
+          </div>
+          <div id="order-line" hidden>
+            <span>order ·</span>
+            <button id="order-score" class="on" title="ranked by load-bearing score">influence</button>
+            <button id="oldest" title="chronological — the ancestry in order">oldest first</button>
+          </div>
         </div>
         <ol id="ranked"></ol>
         <div id="lenses" hidden></div>

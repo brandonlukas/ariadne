@@ -58,7 +58,7 @@ function getJson(path: string): Promise<any> {
         throw new Error(
           getAlexKey()
             ? 'OpenAlex is rate-limiting (429) — daily budget likely spent; it refills daily'
-            : 'OpenAlex is rate-limiting (429) — a free API key (openalex.org/settings/api, paste it under the ● chip) gives 10× the daily budget',
+            : 'OpenAlex is rate-limiting (429) — a free API key (openalex.org/settings/api, paste it under data · openalex) gives 10× the daily budget',
         )
       if (!res.ok) throw new Error(`OpenAlex returned ${res.status}`)
       return res.json()
