@@ -10,7 +10,7 @@ import {
   type SimulationNodeDatum,
 } from 'd3-force'
 
-export type ViewMode = 'constellation' | 'circle' | 'sphere'
+export type ViewMode = 'constellation' | 'circle' | 'sphere' | 'timeline'
 
 export interface GraphNode extends SimulationNodeDatum {
   id: string
@@ -29,6 +29,7 @@ const PAPER = '#ffffff'
 export const THREAD =
   getComputedStyle(document.documentElement).getPropertyValue('--thread').trim() || '#b41f3a'
 const SR = 400 // sphere radius in world units
+const TW = 1200 // timeline width in world units
 const GA = 2.399963229728653 // golden angle
 
 export function createRenderer(
@@ -56,6 +57,9 @@ export function createRenderer(
   let ringR: number[] = []
   let maxRingR = 0
   let sphereU: [number, number, number][] = []
+  let timePos: [number, number][] = []
+  let timeSpan: [number, number] = [0, 0]
+  let timeMaxOff = 0
 
   const view = { x: 0, y: 0, k: 1 }
   const target = { x: 0, y: 0, k: 1 }
@@ -145,10 +149,36 @@ export function createRenderer(
     })
   }
 
+  // columns per year, strongest paper at the spine, the rest alternating outward —
+  // every citation edge points left, into the past
+  function computeTimeline() {
+    const years = nodes.map((n) => n.year).filter(Boolean)
+    const minY = Math.min(...years)
+    const span = Math.max(1, Math.max(...years) - minY)
+    timeSpan = [minY, minY + span]
+    const cols = new Map<number, number[]>()
+    nodes.forEach((n, i) => {
+      const y = n.year || minY // unknown years join the oldest column
+      ;(cols.get(y) ?? cols.set(y, []).get(y)!).push(i)
+    })
+    timePos = new Array(nodes.length)
+    timeMaxOff = 0
+    for (const [year, members] of cols) {
+      members.sort((a, b) => nodes[b].r - nodes[a].r)
+      members.forEach((i, k) => {
+        const off = Math.ceil(k / 2) * 26 * (k % 2 ? 1 : -1)
+        timeMaxOff = Math.max(timeMaxOff, Math.abs(off))
+        timePos[i] = [((year - minY) / span) * TW - TW / 2, off]
+      })
+    }
+  }
+
   function fitK(m: ViewMode): number {
     const pad = 90
     if (m === 'circle') return Math.min(w, h) / (2 * maxRingR + 2 * pad)
     if (m === 'sphere') return Math.min(w, h) / (2 * SR + 2 * pad)
+    if (m === 'timeline')
+      return Math.min(w / (TW + 2 * pad), h / (2 * timeMaxOff + 2 * pad))
     return 1
   }
 
@@ -170,8 +200,8 @@ export function createRenderer(
         ty = nodes[i].y ?? 0
         ta = 1
         tr = nodes[i].r
-      } else if (mode === 'circle') {
-        ;[tx, ty] = circPos[i]
+      } else if (mode === 'circle' || mode === 'timeline') {
+        ;[tx, ty] = (mode === 'circle' ? circPos : timePos)[i]
         ta = 1
         tr = nodes[i].r
       } else {
@@ -198,6 +228,26 @@ export function createRenderer(
     ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, dpr * (w / 2 + view.x), dpr * (h / 2 + view.y))
     const active = hovered ?? external ?? selected
     const hood = active != null ? adj[active] : null
+
+    if (mode === 'timeline') {
+      // year gridlines and labels in world space; font counter-scaled to stay 10px
+      ctx.strokeStyle = 'rgba(27,26,23,0.06)'
+      ctx.lineWidth = 1 / view.k
+      ctx.fillStyle = '#a6a49c'
+      ctx.font = `${10 / view.k}px -apple-system, "Helvetica Neue", sans-serif`
+      ctx.textAlign = 'center'
+      const [minY, maxY] = timeSpan
+      const span = maxY - minY // ≥1 by construction in computeTimeline
+      const ext = timeMaxOff + 40
+      for (let y = Math.ceil(minY / 5) * 5; y <= maxY; y += 5) {
+        const gx = ((y - minY) / span) * TW - TW / 2
+        ctx.beginPath()
+        ctx.moveTo(gx, -ext)
+        ctx.lineTo(gx, ext)
+        ctx.stroke()
+        ctx.fillText(String(y), gx, ext + 18 / view.k)
+      }
+    }
 
     if (mode === 'circle') {
       ctx.strokeStyle = 'rgba(27,26,23,0.07)'
@@ -246,15 +296,26 @@ export function createRenderer(
     ctx.textAlign = 'center'
     for (let i = 0; i < nodes.length; i++) {
       const wantLabel =
-        mode === 'sphere' ? i === active || i === selected : nodes[i].labeled || i === active || i === selected
+        mode === 'sphere'
+          ? i === active || i === selected
+          : mode === 'timeline' // the spine stacks the strongest papers — full labels collide
+            ? nodes[i].isSeed || i === active || i === selected
+            : nodes[i].labeled || i === active || i === selected
       if (!wantLabel || ghosted(i)) continue
       const dim = active != null && i !== active && !hood!.has(i)
       ctx.globalAlpha = da[i] * (dim ? 0.2 : 1)
+      let ly = dy[i] + dr[i] + 13
+      if (mode === 'timeline' && nodes[i].isSeed && i !== active && i !== selected) {
+        // seeds share the spine — alternate labels above/below so close seeds don't collide
+        let ord = 0
+        for (let j = 0; j < i; j++) if (nodes[j].isSeed) ord++
+        if (ord % 2) ly = dy[i] - dr[i] - 6
+      }
       ctx.strokeStyle = PAPER
       ctx.lineWidth = 3
-      ctx.strokeText(nodes[i].label, dx[i], dy[i] + dr[i] + 13)
+      ctx.strokeText(nodes[i].label, dx[i], ly)
       ctx.fillStyle = i === active || i === selected ? '#1b1a17' : '#6e6c65'
-      ctx.fillText(nodes[i].label, dx[i], dy[i] + dr[i] + 13)
+      ctx.fillText(nodes[i].label, dx[i], ly)
       ctx.globalAlpha = 1
     }
   }
@@ -391,6 +452,7 @@ export function createRenderer(
     setMode(m: ViewMode) {
       if (m === mode) return
       if (m === 'circle') computeCircle()
+      if (m === 'timeline') computeTimeline()
       mode = m
       rotTarget = null
       if (m === 'constellation') sim?.alpha(0.15).restart()

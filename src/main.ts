@@ -28,6 +28,7 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   constellation: 'drag to pan · scroll to zoom · touch a paper to find its thread',
   circle: 'rings — steps outward from your seeds · touch a paper to find its thread',
   sphere: 'drag to rotate · touch a paper to find its thread',
+  timeline: 'time flows left to right — citations point into the past · touch a paper to find its thread',
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
