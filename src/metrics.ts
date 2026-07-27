@@ -11,22 +11,35 @@ export interface Metrics {
 export type Weights = { f: number; b: number; m: number; r: number; era: number }
 // intent presets: canon = committee-exam classics, catchup = where the field
 // went since the seeds, pulse = the newest work closest to the seeds
-export const PRESETS: Record<'canon' | 'catchup' | 'pulse', Weights> = {
+export const PRESETS: Record<'canon' | 'catchup' | 'pulse' | 'loadbearing', Weights> = {
   canon: { f: 0.35, b: 0.25, m: 0.2, r: 0.2, era: 1 },
   catchup: { f: 0.1, b: 0.15, m: 0.45, r: 0.3, era: 0.5 },
   pulse: { f: 0.05, b: 0.05, m: 0.4, r: 0.5, era: 0.4 },
+  // roots mode: ancestry is a closed world — no momentum, no era gate, and
+  // foundational becomes personalized ("load-bearing for YOUR lineage")
+  loadbearing: { f: 0.6, b: 0.25, m: 0, r: 0.15, era: 1 },
 }
 
-export function pagerank(n: number, edges: [number, number][], d = 0.85, iters = 50): number[] {
+// restart: optional teleport distribution. Uniform = classic PageRank; mass on
+// the seeds = personalized PageRank ("a reader starts at YOUR papers and
+// forever follows references — where do they keep arriving?")
+export function pagerank(
+  n: number,
+  edges: [number, number][],
+  d = 0.85,
+  iters = 50,
+  restart?: number[],
+): number[] {
+  const rv = restart ?? new Array(n).fill(1 / n)
   const out = new Array(n).fill(0)
   for (const [s] of edges) out[s]++
-  let pr: number[] = new Array(n).fill(1 / n)
+  let pr: number[] = [...rv]
   for (let it = 0; it < iters; it++) {
     const next = new Array(n).fill(0)
     let dangling = 0
     for (let i = 0; i < n; i++) if (out[i] === 0) dangling += pr[i]
     for (const [s, t] of edges) next[t] += pr[s] / out[s]
-    for (let i = 0; i < n; i++) next[i] = (1 - d) / n + d * (next[i] + dangling / n)
+    for (let i = 0; i < n; i++) next[i] = (1 - d) * rv[i] + d * (next[i] + dangling * rv[i])
     pr = next
   }
   return pr
@@ -109,10 +122,14 @@ export function computeMetrics(
   works: { recentCites: number; citedBy: number; year: number; isSeed: boolean }[],
   edges: [number, number][],
   w: Weights = PRESETS.canon,
+  personalized = false,
 ): Metrics[] {
   const era = Math.max(0, ...works.filter((wk) => wk.isSeed && wk.year > 0).map((wk) => wk.year))
   const n = works.length
-  const pr = norm(pagerank(n, edges))
+  const nSeeds = works.filter((wk) => wk.isSeed).length
+  const restart =
+    personalized && nSeeds ? works.map((wk) => (wk.isSeed ? 1 / nSeeds : 0)) : undefined
+  const pr = norm(pagerank(n, edges, 0.85, 50, restart))
   const bt = norm(betweenness(n, edges))
   const vel = norm(works.map((wk) => Math.log1p(wk.recentCites)))
   // fraction of lifetime citations from the last 3 years — high for new-and-hot

@@ -76,6 +76,12 @@
       border: none; border-radius: 999px; letter-spacing: 0.01em; }
     #weave:hover:not(:disabled) { background: #c72a48; }
     #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
+    #weave-mode { display: flex; justify-content: center; gap: 16px; padding: 8px 18px 0 22px;
+      font-size: 11px; }
+    #weave-mode button { background: none; border: none; padding: 0; color: var(--faint);
+      letter-spacing: 0.02em; }
+    #weave-mode button.on { color: var(--thread); }
+    #weave-mode button:hover { color: var(--gray); }
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status.error { color: var(--thread); }
     #ai { padding: 0 18px 6px 22px; }
@@ -287,6 +293,11 @@
         <ul id="picker"></ul>
         <ul id="seed-chips"></ul>
         <button id="weave" disabled>weave the graph</button>
+        <div id="weave-mode">
+          <button data-w="roots" title="ancestry — where your seeds came from">← roots</button>
+          <button data-w="both" class="on" title="both directions — bridges live here">both</button>
+          <button data-w="shoots" title="peers and successors — where it's going">shoots →</button>
+        </div>
         <div id="status"></div>
         <div id="ai">
           <button id="ai-toggle">✦ ai off</button>
@@ -309,6 +320,8 @@
         </div>
         <div id="preset" hidden>
           <span>rank</span>
+          <button data-p="loadbearing" hidden title="what your seeds' lineage rests on — personalized PageRank">load-bearing</button>
+          <button data-p="era" hidden title="chronological, oldest first — the story in order">era</button>
           <button data-p="canon" class="on" title="the classics — the committee-exam reading list">canon</button>
           <button data-p="catchup" title="where the field went since your seeds">catch-up</button>
           <button data-p="pulse" title="the newest work closest to your seeds">pulse</button>

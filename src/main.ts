@@ -1,4 +1,4 @@
-import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type Work } from './api.ts'
+import { buildCorpus, idLike, resolveSeed, searchSeeds, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
 import { getKey, getLastModel, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
@@ -31,17 +31,25 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v11' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v12' // bump when the cached corpus shape or harvest logic changes
 
 function saveStore() {
   try {
-    localStorage.setItem(STORE, JSON.stringify({ seeds, corpus, flags, intent, aiWhy }))
+    localStorage.setItem(STORE, JSON.stringify({ seeds, corpora, mode: weaveMode, flags, intent, aiWhy }))
   } catch {} // over quota — reweave on next visit instead
 }
 
 let seeds: Work[] = []
-let rank: keyof typeof PRESETS | 'newest' = 'canon'
-let preset: keyof typeof PRESETS = 'canon' // last weight-bearing choice; newest reuses it
+type Rank = keyof typeof PRESETS | 'newest' | 'era'
+let rank: Rank = 'canon'
+let preset: keyof typeof PRESETS = 'canon' // last weight-bearing choice; sorts reuse it
+let weaveMode: WeaveMode = 'both'
+let corpora: Partial<Record<WeaveMode, Corpus>> = {} // one seed set, up to three instruments
+const RANKS: Record<WeaveMode, Rank[]> = {
+  roots: ['loadbearing', 'era'],
+  both: ['canon', 'catchup', 'pulse', 'newest'],
+  shoots: ['catchup', 'pulse', 'newest'],
+}
 let bridgesOnly = false
 let needle = ''
 let flags: Record<string, 'star' | 'hide'> = {}
@@ -183,7 +191,7 @@ function renderChips() {
       return li
     }),
   )
-  weaveBtn.disabled = seeds.length === 0 || seedKey() === wovenKey
+  weaveBtn.disabled = seeds.length === 0 || (seedKey() === wovenKey && !!corpora[weaveMode])
   if (seeds.length === 0) localStorage.removeItem(STORE)
 }
 
@@ -258,11 +266,48 @@ $<HTMLButtonElement>('demo').onclick = async (e) => {
   }
 }
 
+const writeHash = () =>
+  history.replaceState(
+    null,
+    '',
+    '#s=' + seeds.map((s) => s.id).join(',') + (weaveMode === 'both' ? '' : '&m=' + weaveMode),
+  )
+
+document.querySelectorAll<HTMLButtonElement>('#weave-mode button').forEach((b) => {
+  b.onclick = () => {
+    weaveMode = b.dataset.w as WeaveMode
+    document.querySelectorAll('#weave-mode button').forEach((x) => x.classList.toggle('on', x === b))
+    renderChips() // weave button state depends on which mode is cached
+    if (corpora[weaveMode] && seedKey() === wovenKey) {
+      corpus = corpora[weaveMode]!
+      writeHash()
+      saveStore()
+      present()
+    } else if (seeds.length && seedKey() === wovenKey) {
+      weaveBtn.click() // same seeds, unwoven instrument — fetch it
+    }
+  }
+})
+
 // --- weave ---
+
+function updateRankRow() {
+  const allowed = RANKS[weaveMode]
+  if (!allowed.includes(rank)) {
+    rank = allowed[0]
+    if (rank !== 'newest' && rank !== 'era') preset = rank
+    else preset = weaveMode === 'roots' ? 'loadbearing' : 'canon'
+  }
+  document.querySelectorAll<HTMLButtonElement>('#preset button[data-p]').forEach((b) => {
+    b.hidden = !allowed.includes(b.dataset.p as Rank)
+    b.classList.toggle('on', b.dataset.p === rank)
+  })
+}
 
 function present() {
   if (!corpus) return
-  metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset])
+  updateRankRow()
+  metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset], weaveMode === 'roots')
   byId = new Map(corpus.works.map((w, i) => [w.id, i]))
   seedLinks = metrics.map((m) => m.seedLinks)
   computeOrder()
@@ -294,8 +339,11 @@ function present() {
 function computeOrder() {
   if (!corpus) return
   const key =
-    rank === 'newest' ? (i: number) => corpus!.works[i].year : (i: number) => metrics[i].score
+    rank === 'newest' || rank === 'era'
+      ? (i: number) => corpus!.works[i].year || (rank === 'era' ? 9999 : 0)
+      : (i: number) => metrics[i].score
   order = corpus.works.map((_, i) => i).sort((a, b) => key(b) - key(a))
+  if (rank === 'era') order.reverse() // ancestry reads oldest-first: the story in order
 }
 
 // rebuild everything that depends on `order` or per-paper flags
@@ -320,9 +368,9 @@ document.querySelectorAll<HTMLButtonElement>('#preset button[data-p]').forEach((
     rank = b.dataset.p as typeof rank
     document.querySelectorAll('#preset button[data-p]').forEach((x) => x.classList.toggle('on', x === b))
     if (!corpus) return
-    if (rank !== 'newest' && rank !== preset) {
+    if (rank !== 'newest' && rank !== 'era' && rank !== preset) {
       preset = rank
-      metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset])
+      metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset], weaveMode === 'roots')
       seedLinks = metrics.map((m) => m.seedLinks)
       computeOrder()
       const labeled = new Set(order.slice(0, 14))
@@ -534,11 +582,16 @@ weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
   panelEl.classList.remove('open')
   try {
-    corpus = await buildCorpus(seeds, status)
+    const built = await buildCorpus(seeds, status, weaveMode)
+    if (seedKey() !== wovenKey) {
+      corpora = {} // new seed set — every mode's corpus went stale
+      intent = '' // so did the inferred question and its cached answers
+      aiWhy = {}
+    }
+    corpus = built
+    corpora[weaveMode] = built
     wovenKey = seedKey()
-    intent = '' // the question changed with the seeds; cached answers went stale too
-    aiWhy = {}
-    history.replaceState(null, '', '#s=' + seeds.map((s) => s.id).join(','))
+    writeHash()
     saveStore()
     present()
     status('')
@@ -981,22 +1034,36 @@ $('export-json').onclick = () => {
 // --- remember the weave ---
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null')
-  if (saved?.corpus) {
+  if (saved?.corpora) {
     seeds = saved.seeds
-    corpus = saved.corpus
+    corpora = saved.corpora
+    weaveMode = saved.mode ?? 'both'
+    corpus = corpora[weaveMode] ?? null
     flags = saved.flags ?? {}
     intent = saved.intent ?? ''
     aiWhy = saved.aiWhy ?? {}
     wovenKey = seedKey()
+    document
+      .querySelectorAll<HTMLButtonElement>('#weave-mode button')
+      .forEach((x) => x.classList.toggle('on', x.dataset.w === weaveMode))
     renderChips()
-    present()
+    if (corpus) present()
     maybeInferIntent() // a key may be set while the last session's intent isn't
   }
 } catch {} // corrupt store — start fresh
 
 // a shared link's seeds win over whatever this browser had woven before
 const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
-if (linked.length && [...linked].sort().join('|') !== wovenKey) {
+const linkedMode = location.hash.match(/[#&]m=(roots|shoots)/)?.[1] as WeaveMode | undefined
+if (linkedMode && linkedMode !== weaveMode) {
+  weaveMode = linkedMode
+  document
+    .querySelectorAll<HTMLButtonElement>('#weave-mode button')
+    .forEach((x) => x.classList.toggle('on', x.dataset.w === weaveMode))
+  corpus = corpora[weaveMode] ?? null
+  if (corpus) present()
+}
+if (linked.length && ([...linked].sort().join('|') !== wovenKey || !corpora[weaveMode])) {
   ;(async () => {
     status('Resolving linked seeds…')
     try {
