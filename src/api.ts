@@ -111,6 +111,10 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
   // how many distinct seed-neighborhood links corroborate each candidate
   const links = new Map<string, number>()
   const bump = (id: string) => links.set(id, (links.get(id) ?? 0) + 1)
+  // co-citation: how often each paper is cited alongside a seed by the seed's
+  // own citers — the only signal that reaches true contemporaries, which often
+  // share no direct edge with the seed (concurrent work can't cite it)
+  const cocite = new Map<string, number>()
 
   for (let i = 0; i < seeds.length; i++) {
     const s = seeds[i]
@@ -131,10 +135,21 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
         citers.add(w.id)
       }
     }
-    for (const id of citers) bump(id)
+    for (const id of citers) {
+      bump(id)
+      for (const r of pool.get(id)!.refs) if (r !== s.id) cocite.set(r, (cocite.get(r) ?? 0) + 1)
+    }
   }
 
   const seedIds = new Set(seeds.map((s) => s.id))
+
+  // heavily co-cited papers earn corroboration even with zero direct seed
+  // links (capped below what two direct links buy — peers shouldn't outrank
+  // true bridges)
+  for (const [id, n] of cocite) {
+    const earned = Math.min(2, Math.floor(n / 15))
+    if (earned && !seedIds.has(id)) links.set(id, (links.get(id) ?? 0) + earned)
+  }
 
   // fetch every candidate we only know as a reference id — unfetched refs rank
   // at zero, which silently dropped the seeds' actual contemporaries (SwinIR,
