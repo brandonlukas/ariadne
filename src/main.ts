@@ -31,10 +31,10 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v13' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v14' // bump when the cached corpus shape or harvest logic changes
 
 function saveStore() {
-  const payload = { seeds, corpora, mode: weaveMode, flags, intent, aiWhy }
+  const payload = { seeds, corpora, ask, flags, intent, aiWhy }
   try {
     localStorage.setItem(STORE, JSON.stringify(payload))
   } catch {
@@ -46,16 +46,18 @@ function saveStore() {
 }
 
 let seeds: Work[] = []
-type Rank = keyof typeof PRESETS | 'newest' | 'era'
-let rank: Rank = 'canon'
-let preset: keyof typeof PRESETS = 'canon' // last weight-bearing choice; sorts reuse it
+// one control: each ask bundles a harvest direction, a weighting, and a sort
+type Ask = 'canon' | 'groundwork' | 'since' | 'now'
+const ASKS: Record<Ask, { mode: WeaveMode; preset: keyof typeof PRESETS; sort: 'score' | 'year' }> = {
+  canon: { mode: 'both', preset: 'canon', sort: 'score' },
+  groundwork: { mode: 'roots', preset: 'loadbearing', sort: 'score' },
+  since: { mode: 'shoots', preset: 'catchup', sort: 'score' },
+  now: { mode: 'shoots', preset: 'catchup', sort: 'year' },
+}
+let ask: Ask = 'canon'
+let oldestFirst = false // groundwork's story toggle: chronological ancestry
 let weaveMode: WeaveMode = 'both'
 let corpora: Partial<Record<WeaveMode, Corpus>> = {} // one seed set, up to three instruments
-const RANKS: Record<WeaveMode, Rank[]> = {
-  roots: ['loadbearing', 'era'],
-  both: ['canon', 'catchup', 'pulse', 'newest'],
-  shoots: ['catchup', 'pulse', 'newest'],
-}
 let bridgesOnly = false
 let needle = ''
 let flags: Record<string, 'star' | 'hide'> = {}
@@ -275,44 +277,67 @@ const writeHash = () =>
   history.replaceState(
     null,
     '',
-    '#s=' + seeds.map((s) => s.id).join(',') + (weaveMode === 'both' ? '' : '&m=' + weaveMode),
+    '#s=' + seeds.map((s) => s.id).join(',') + (ask === 'canon' ? '' : '&a=' + ask),
   )
 
-document.querySelectorAll<HTMLButtonElement>('#weave-mode button').forEach((b) => {
+function syncAskUI() {
+  document
+    .querySelectorAll<HTMLButtonElement>('#preset button[data-a]')
+    .forEach((x) => x.classList.toggle('on', x.dataset.a === ask))
+  const story = $('oldest')
+  story.hidden = ask !== 'groundwork'
+  story.classList.toggle('on', oldestFirst)
+}
+
+document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((b) => {
   b.onclick = () => {
-    weaveMode = b.dataset.w as WeaveMode
-    document.querySelectorAll('#weave-mode button').forEach((x) => x.classList.toggle('on', x === b))
-    renderChips() // weave button state depends on which mode is cached
-    if (corpora[weaveMode] && seedKey() === wovenKey) {
-      corpus = corpora[weaveMode]!
-      writeHash()
-      saveStore()
-      present()
-    } else if (seeds.length && seedKey() === wovenKey) {
-      weaveBtn.click() // same seeds, unwoven instrument — fetch it
+    ask = b.dataset.a as Ask
+    if (ask !== 'groundwork') oldestFirst = false
+    const wanted = ASKS[ask].mode
+    syncAskUI()
+    if (wanted !== weaveMode) {
+      weaveMode = wanted
+      renderChips()
+      if (corpora[weaveMode] && seedKey() === wovenKey) {
+        corpus = corpora[weaveMode]!
+        writeHash()
+        saveStore()
+        present()
+      } else if (seeds.length && seedKey() === wovenKey) {
+        weaveBtn.click() // same seeds, unwoven direction — fetch it
+      }
+      return
     }
+    if (!corpus) return
+    metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[ASKS[ask].preset], weaveMode === 'roots')
+    computeOrder()
+    const labeled = new Set(order.slice(0, 14))
+    renderer.restyle(
+      new Map(
+        corpus.works.map((w, i) => [
+          w.id,
+          { r: 3.5 + metrics[i].score * 14, labeled: labeled.has(i) || w.isSeed },
+        ]),
+      ),
+    )
+    writeHash()
+    refreshViews()
   }
 })
 
-// --- weave ---
-
-function updateRankRow() {
-  const allowed = RANKS[weaveMode]
-  if (!allowed.includes(rank)) {
-    rank = allowed[0]
-    if (rank !== 'newest' && rank !== 'era') preset = rank
-    else preset = weaveMode === 'roots' ? 'loadbearing' : 'canon'
-  }
-  document.querySelectorAll<HTMLButtonElement>('#preset button[data-p]').forEach((b) => {
-    b.hidden = !allowed.includes(b.dataset.p as Rank)
-    b.classList.toggle('on', b.dataset.p === rank)
-  })
+$<HTMLButtonElement>('oldest').onclick = () => {
+  oldestFirst = !oldestFirst
+  syncAskUI()
+  computeOrder()
+  refreshViews()
 }
+
+// --- weave ---
 
 function present() {
   if (!corpus) return
-  updateRankRow()
-  metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset], weaveMode === 'roots')
+  syncAskUI()
+  metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[ASKS[ask].preset], weaveMode === 'roots')
   byId = new Map(corpus.works.map((w, i) => [w.id, i]))
   computeOrder()
   $<HTMLInputElement>('find').value = ''
@@ -342,12 +367,12 @@ function present() {
 
 function computeOrder() {
   if (!corpus) return
-  const key =
-    rank === 'newest' || rank === 'era'
-      ? (i: number) => corpus!.works[i].year || (rank === 'era' ? 9999 : 0)
-      : (i: number) => metrics[i].score
+  const byYear = ASKS[ask].sort === 'year' || oldestFirst
+  const key = byYear
+    ? (i: number) => corpus!.works[i].year || (oldestFirst ? 9999 : 0)
+    : (i: number) => metrics[i].score
   order = corpus.works.map((_, i) => i).sort((a, b) => key(b) - key(a))
-  if (rank === 'era') order.reverse() // ancestry reads oldest-first: the story in order
+  if (oldestFirst) order.reverse() // ancestry reads oldest-first: the story in order
 }
 
 // rebuild everything that depends on `order` or per-paper flags
@@ -367,30 +392,6 @@ $<HTMLInputElement>('find').oninput = (e) => {
   applyFilter()
 }
 
-document.querySelectorAll<HTMLButtonElement>('#preset button[data-p]').forEach((b) => {
-  b.onclick = () => {
-    rank = b.dataset.p as typeof rank
-    document.querySelectorAll('#preset button[data-p]').forEach((x) => x.classList.toggle('on', x === b))
-    if (!corpus) return
-    if (rank !== 'newest' && rank !== 'era' && rank !== preset) {
-      preset = rank
-      metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[preset], weaveMode === 'roots')
-          computeOrder()
-      const labeled = new Set(order.slice(0, 14))
-      renderer.restyle(
-        new Map(
-          corpus.works.map((w, i) => [
-            w.id,
-            { r: 3.5 + metrics[i].score * 14, labeled: labeled.has(i) || w.isSeed },
-          ]),
-        ),
-      )
-    } else {
-      computeOrder()
-    }
-    refreshViews()
-  }
-})
 
 $<HTMLButtonElement>('bridges').onclick = (e) => {
   bridgesOnly = !bridgesOnly
@@ -1040,15 +1041,13 @@ try {
   if (saved?.corpora) {
     seeds = saved.seeds
     corpora = saved.corpora
-    weaveMode = saved.mode ?? 'both'
+    ask = saved.ask ?? 'canon'
+    weaveMode = ASKS[ask].mode
     corpus = corpora[weaveMode] ?? null
     flags = saved.flags ?? {}
     intent = saved.intent ?? ''
     aiWhy = saved.aiWhy ?? {}
     wovenKey = seedKey()
-    document
-      .querySelectorAll<HTMLButtonElement>('#weave-mode button')
-      .forEach((x) => x.classList.toggle('on', x.dataset.w === weaveMode))
     renderChips()
     if (corpus) present()
     maybeInferIntent() // a key may be set while the last session's intent isn't
@@ -1057,12 +1056,13 @@ try {
 
 // a shared link's seeds win over whatever this browser had woven before
 const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
-const linkedMode = location.hash.match(/[#&]m=(roots|shoots)/)?.[1] as WeaveMode | undefined
-if (linkedMode && linkedMode !== weaveMode) {
-  weaveMode = linkedMode
-  document
-    .querySelectorAll<HTMLButtonElement>('#weave-mode button')
-    .forEach((x) => x.classList.toggle('on', x.dataset.w === weaveMode))
+const linkedAsk = (location.hash.match(/[#&]a=(canon|groundwork|since|now)/)?.[1] ??
+  { roots: 'groundwork', shoots: 'since' }[location.hash.match(/[#&]m=(roots|shoots)/)?.[1] ?? '']) as
+  | Ask
+  | undefined
+if (linkedAsk && linkedAsk !== ask) {
+  ask = linkedAsk
+  weaveMode = ASKS[ask].mode
   corpus = corpora[weaveMode] ?? null
   if (corpus) present()
 }
