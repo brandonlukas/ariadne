@@ -4,10 +4,10 @@ export interface Metrics {
   parts: { foundational: number; bridge: number; momentum: number; relevance: number }
 }
 
-// era: score multiplier for papers older than the earliest seed. Classics like
-// U-Net out-collect every new paper in absolute recent citations, so without
-// this gate they top "catch-up" too — but a paper that predates your seeds
-// cannot be a development since them.
+// era: score multiplier for papers not newer than the latest seed. Classics and
+// seed-era peers out-collect every new paper in absolute recent citations, so
+// without this gate they top "catch-up" too — but only papers published after
+// the seeds can be developments since them. Seeds themselves are exempt.
 export type Weights = { f: number; b: number; m: number; r: number; era: number }
 // intent presets: canon = committee-exam classics, catchup = where the field
 // went since the seeds, pulse = the newest work closest to the seeds
@@ -110,7 +110,7 @@ export function computeMetrics(
   edges: [number, number][],
   w: Weights = PRESETS.canon,
 ): Metrics[] {
-  const era = Math.min(Infinity, ...works.filter((wk) => wk.isSeed && wk.year > 0).map((wk) => wk.year))
+  const era = Math.max(0, ...works.filter((wk) => wk.isSeed && wk.year > 0).map((wk) => wk.year))
   const n = works.length
   const pr = norm(pagerank(n, edges))
   const bt = norm(betweenness(n, edges))
@@ -141,7 +141,7 @@ export function computeMetrics(
     const raw =
       w.f * parts.foundational + w.b * parts.bridge + w.m * parts.momentum + w.r * parts.relevance
     return {
-      score: works[i].year && works[i].year < era ? raw * w.era : raw,
+      score: works[i].year && !works[i].isSeed && works[i].year <= era ? raw * w.era : raw,
       seedLinks: links[i],
       parts,
     }

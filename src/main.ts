@@ -31,7 +31,7 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v7' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v8' // bump when the cached corpus shape or harvest logic changes
 
 function saveStore() {
   try {

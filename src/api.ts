@@ -108,9 +108,8 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
   for (const s of seeds) pool.set(s.id, { ...s, isSeed: true })
   const thisYear = new Date().getFullYear()
 
-  // how many distinct seed-neighborhood links corroborate each candidate
-  const links = new Map<string, number>()
-  const bump = (id: string) => links.set(id, (links.get(id) ?? 0) + 1)
+  // every id met in the seed neighborhood — refs, citers, heavy co-citations
+  const seen = new Set<string>()
   // co-citation: how often each paper is cited alongside a seed by the seed's
   // own citers — the only signal that reaches true contemporaries, which often
   // share no direct edge with the seed (concurrent work can't cite it)
@@ -119,7 +118,7 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
   for (let i = 0; i < seeds.length; i++) {
     const s = seeds[i]
     onStatus(`Pulling citations ${i + 1}/${seeds.length}: ${s.title.slice(0, 48)}…`)
-    for (const r of s.refs) bump(r)
+    for (const r of s.refs) seen.add(r)
     // three pulls per seed: the canon (all-time top-cited), the pulse (newest by
     // date), and the frontier (last-2-years citers ranked by traction)
     const citers = new Set<string>()
@@ -136,25 +135,23 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
       }
     }
     for (const id of citers) {
-      bump(id)
+      seen.add(id)
       for (const r of pool.get(id)!.refs) if (r !== s.id) cocite.set(r, (cocite.get(r) ?? 0) + 1)
     }
   }
 
   const seedIds = new Set(seeds.map((s) => s.id))
 
-  // heavily co-cited papers earn corroboration even with zero direct seed
-  // links (capped below what two direct links buy — peers shouldn't outrank
-  // true bridges)
-  for (const [id, n] of cocite) {
-    const earned = Math.min(2, Math.floor(n / 15))
-    if (earned && !seedIds.has(id)) links.set(id, (links.get(id) ?? 0) + earned)
-  }
+  // heavy co-citation admits a paper to the candidate pool even with zero
+  // direct seed edges — the only route to true contemporaries (capped below
+  // what two direct links buy, so peers never outrank bridges)
+  const earned = (id: string) => Math.min(2, Math.floor((cocite.get(id) ?? 0) / 15))
+  for (const [id] of cocite) if (earned(id) && !seedIds.has(id)) seen.add(id)
 
   // fetch every candidate we only know as a reference id — unfetched refs rank
   // at zero, which silently dropped the seeds' actual contemporaries (SwinIR,
   // MPRNet, IPT never made the corpus) while 50-citation citers walked in
-  const unknown = [...links.keys()].filter((id) => !seedIds.has(id) && !pool.has(id))
+  const unknown = [...seen].filter((id) => !seedIds.has(id) && !pool.has(id))
   for (let i = 0; i < unknown.length; i += 50) {
     onStatus(`Reading references ${Math.min(i + 50, unknown.length)}/${unknown.length}…`)
     const j = await getJson(
@@ -166,15 +163,22 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
     }
   }
 
+  // direct links counted from actual citation data, not pull membership — a
+  // paper citing both seeds may surface in only one seed's pulls (StruNet did)
+  const refOfSeed = new Map<string, number>()
+  for (const s of seeds) for (const r of s.refs) refOfSeed.set(r, (refOfSeed.get(r) ?? 0) + 1)
+  const directOf = (id: string) =>
+    (refOfSeed.get(id) ?? 0) + (pool.get(id)?.refs.filter((r) => seedIds.has(r)).length ?? 0)
+  const corro = (id: string) => directOf(id) + earned(id)
+
   // tiebreak on citations per year, not lifetime count — else age wins every tie
   const perYear = (id: string) => {
     const w = pool.get(id)
     return w ? w.citedBy / Math.max(1, thisYear - w.year + 1) : 0
   }
-  const ranked = [...links.entries()]
-    .filter(([id]) => !seedIds.has(id))
-    .sort((a, b) => b[1] - a[1] || perYear(b[0]) - perYear(a[0]))
-    .map(([id]) => id)
+  const ranked = [...seen]
+    .filter((id) => !seedIds.has(id))
+    .sort((a, b) => corro(b) - corro(a) || perYear(b) - perYear(a))
   const cutN = MAX_NODES - seeds.length
   const candidates = ranked.slice(0, cutN)
   // recency quota: the cut otherwise re-drops the young low-cite papers the
@@ -187,6 +191,16 @@ export async function buildCorpus(seeds: Work[], onStatus: (msg: string) => void
     for (let i = candidates.length - 1; i >= 0 && extra.length; i--)
       if (!isRecent(candidates[i])) candidates.splice(i, 1, extra.shift()!)
   }
+  // papers directly touching 2+ seeds are the rarest, most intent-relevant
+  // finds in the graph — they must never lose the cut to co-cited crowds
+  for (const id of ranked)
+    if (directOf(id) >= 2 && !candidates.includes(id))
+      for (let i = candidates.length - 1; i >= 0; i--)
+        if (directOf(candidates[i]) < 2) {
+          candidates.splice(i, 1)
+          candidates.push(id)
+          break
+        }
 
   const keep = new Set([...seedIds, ...candidates])
   const works = [...pool.values()].filter((w) => keep.has(w.id))
