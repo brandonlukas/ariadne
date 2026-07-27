@@ -9,12 +9,11 @@ export interface Metrics {
 // without this gate they top "catch-up" too — but only papers published after
 // the seeds can be developments since them. Seeds themselves are exempt.
 type Weights = { f: number; b: number; m: number; r: number; era: number }
-// intent presets: canon = committee-exam classics, catchup = where the field
-// went since the seeds, pulse = the newest work closest to the seeds
-export const PRESETS: Record<'canon' | 'catchup' | 'pulse' | 'loadbearing', Weights> = {
+// weighting presets behind the ask row: canon = committee-exam classics,
+// catchup = developments since the seeds
+export const PRESETS: Record<'canon' | 'catchup' | 'loadbearing', Weights> = {
   canon: { f: 0.35, b: 0.25, m: 0.2, r: 0.2, era: 1 },
   catchup: { f: 0.1, b: 0.15, m: 0.45, r: 0.3, era: 0.5 },
-  pulse: { f: 0.05, b: 0.05, m: 0.4, r: 0.5, era: 0.4 },
   // roots mode: ancestry is a closed world — no momentum, no era gate, and
   // foundational becomes personalized ("load-bearing for YOUR lineage")
   loadbearing: { f: 0.6, b: 0.25, m: 0, r: 0.15, era: 1 },
