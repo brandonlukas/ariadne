@@ -46,7 +46,11 @@ async function ask(prompt: string): Promise<string> {
     })
     if (res.status === 401) throw new Error('AI key rejected (401) — check your OpenRouter key')
     if (!res.ok) {
-      err = new Error(`AI request failed (${res.status})`)
+      const detail = (await res.json().catch(() => null))?.error?.message ?? ''
+      err = new Error(`AI request failed (${res.status})${detail ? ` — ${detail}` : ''}`)
+      // 429s are account- or pool-wide: trying more free models just burns
+      // more of the same quota
+      if (res.status === 429) throw err
       continue
     }
     const text = (await res.json()).choices?.[0]?.message?.content

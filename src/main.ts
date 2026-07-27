@@ -168,6 +168,8 @@ function renderIntent() {
 async function maybeInferIntent() {
   if (!corpus || !getKey() || intent) return
   const line = $('intent-line')
+  line.onclick = null
+  line.style.cursor = ''
   line.hidden = false
   line.textContent = '✦ reading the seeds…'
   try {
@@ -176,7 +178,9 @@ async function maybeInferIntent() {
     renderIntent()
     aiLabel() // now we know which model answered
   } catch (err) {
-    line.textContent = `✦ ${err instanceof Error ? err.message : String(err)}`
+    line.textContent = `✦ ${err instanceof Error ? err.message : String(err)} — tap to retry`
+    line.style.cursor = 'pointer'
+    line.onclick = () => maybeInferIntent()
   }
 }
 
