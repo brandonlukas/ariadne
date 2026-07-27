@@ -31,7 +31,7 @@ const HINTS: Record<ViewMode | 'gallery', string> = {
   gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
 }
 
-const STORE = 'ariadne:weave:v8' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v9' // bump when the cached corpus shape or harvest logic changes
 
 function saveStore() {
   try {
@@ -831,6 +831,13 @@ function openDetails(i: number) {
   open.href = w.doi ?? `https://openalex.org/${w.id}`
   open.target = '_blank'
   pills.append(open)
+  if (w.pdf) {
+    const pdf = el('a', 'pill', 'pdf ↗')
+    pdf.href = w.pdf
+    pdf.target = '_blank'
+    pdf.title = 'open-access copy'
+    pills.append(pdf)
+  }
   const setFlag = (kind: 'star' | 'hide') => {
     if (flags[w.id] === kind) delete flags[w.id]
     else flags[w.id] = kind
@@ -889,6 +896,7 @@ $('export-md').onclick = () => {
     lines.push(`- Authors: ${w.authors.slice(0, 8).join(', ')}${w.authors.length > 8 ? ' et al.' : ''}`)
     if (w.venue) lines.push(`- Published in: ${w.venue}`)
     if (w.doi) lines.push(`- DOI: ${w.doi}`)
+    if (w.pdf) lines.push(`- PDF (open access): ${w.pdf}`)
     lines.push(`- Score: ${m.score.toFixed(2)} (foundational ${m.parts.foundational.toFixed(2)}, bridge ${m.parts.bridge.toFixed(2)}, momentum ${m.parts.momentum.toFixed(2)}, relevance ${m.parts.relevance.toFixed(2)})`)
     lines.push(`- Why it matters: ${why(w, m, seedLinks[i])}`)
     if (w.abstract) lines.push(`\n> ${w.abstract}`)

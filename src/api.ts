@@ -10,6 +10,7 @@ export interface Work {
   recentCites: number
   doi: string | null
   abstract: string | null
+  pdf: string | null // legal open-access copy, when one exists
   isSeed: boolean
 }
 
@@ -21,7 +22,7 @@ export interface Corpus {
 const API = 'https://api.openalex.org'
 const MAILTO = 'brandonlukas@gmail.com'
 const SELECT =
-  'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index'
+  'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
 const MAX_NODES = 200
 const CITERS_PER_SEED = 50
 
@@ -63,6 +64,7 @@ function parseWork(j: any): Work {
   const recentCites = (j.counts_by_year ?? [])
     .filter((c: any) => c.year >= thisYear - 2)
     .reduce((s: number, c: any) => s + c.cited_by_count, 0)
+  const arxivId = findArxivId(j)
   return {
     id: short(j.id),
     title: j.display_name ?? '(untitled)',
@@ -70,11 +72,12 @@ function parseWork(j: any): Work {
     citedBy: j.cited_by_count ?? 0,
     authors: (j.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
     venue: j.primary_location?.source?.display_name ?? null,
-    arxivId: findArxivId(j),
+    arxivId,
     refs: (j.referenced_works ?? []).map(short),
     recentCites,
     doi: j.doi ?? null,
     abstract: deInvert(j.abstract_inverted_index ?? null),
+    pdf: j.best_oa_location?.pdf_url ?? (arxivId ? `https://arxiv.org/pdf/${arxivId}` : null),
     isSeed: false,
   }
 }
