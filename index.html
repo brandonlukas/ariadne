@@ -152,6 +152,15 @@
       padding: 2px 10px; font-size: 11px; color: var(--gray); }
     #preset .seg button:hover { color: var(--ink); }
     #preset .seg button.on { background: var(--sel); color: var(--ink); }
+    #ask-desc { margin-top: 6px; padding-left: 4px; color: var(--faint); line-height: 1.5; }
+    #ask-help { background: none; border: 1px solid var(--hairline); color: var(--faint);
+      border-radius: 50%; width: 18px; height: 18px; padding: 0; margin-left: 6px;
+      font-size: 10px; vertical-align: middle; cursor: pointer; }
+    #ask-help:hover, #ask-help.on { color: var(--thread); border-color: var(--thread); }
+    #ask-legend { margin-top: 8px; border-top: 1px solid var(--hairline); padding: 8px 0 2px 4px;
+      display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; color: var(--gray); }
+    #ask-legend[hidden] { display: none; }
+    #ask-legend b { font-weight: 600; color: var(--ink); }
     #order-line { margin-top: 6px; padding-left: 4px; color: var(--faint);
       display: flex; gap: 10px; align-items: baseline; }
     #order-line[hidden] { display: none; }
@@ -218,6 +227,21 @@
       padding: 7px 15px; font-size: 12px; color: var(--ink); text-decoration: none;
       white-space: nowrap; }
     .pill:hover { border-color: var(--faint); }
+    #export-menu { position: relative; }
+    #export-menu summary { list-style: none; }
+    #export-menu summary::-webkit-details-marker { display: none; }
+    #export-dd { position: absolute; right: 0; top: calc(100% + 6px); z-index: 12;
+      background: var(--paper); border: 1px solid var(--hairline); border-radius: 8px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1); padding: 6px; width: 230px; }
+    #export-dd .grouphead { display: block; padding: 6px 8px 2px; color: var(--faint);
+      font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+    #export-dd hr { border: none; border-top: 1px solid var(--hairline); margin: 4px 0; }
+    #export-dd button { display: flex; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+      background: none; border: none; border-radius: 6px; padding: 6px 8px; align-items: baseline;
+      font: inherit; font-size: 12px; }
+    #export-dd button:hover { background: var(--hover); }
+    #export-dd b { font-weight: 600; color: var(--ink); min-width: 42px; }
+    #export-dd span { color: var(--gray); }
 
     #empty { position: absolute; inset: 0; display: flex; align-items: center;
       justify-content: center; color: var(--faint); font-size: 13px; text-align: center;
@@ -342,11 +366,13 @@
         </div>
         <div id="preset" hidden>
           <div class="seg">
-            <button data-a="canon" class="on" title="the influence map — what carries this literature">canon</button>
-            <button data-a="groundwork" title="what your seeds are built on — ancestry, two hops deep">groundwork</button>
-            <button data-a="since" title="what came after your seeds">since</button>
-            <button data-a="now" title="the newest work in the conversation">now</button>
-          </div>
+            <button data-a="canon" class="on">canon</button>
+            <button data-a="groundwork">groundwork</button>
+            <button data-a="since">since</button>
+            <button data-a="now">now</button>
+          </div><button id="ask-help" aria-label="explain the asks">?</button>
+          <div id="ask-legend" hidden></div>
+          <div id="ask-desc"></div>
           <div id="order-line" hidden>
             <span>order ·</span>
             <button id="order-score" class="on" title="ranked by load-bearing score">influence</button>
@@ -379,9 +405,20 @@
         <div id="hint"></div>
         <div id="toolbar">
           <button class="pill" id="copy-link">copy link</button>
-          <button class="pill" id="export-md">export .md</button>
-          <button class="pill" id="export-bib">export .bib</button>
-          <button class="pill" id="export-json">export .json</button>
+          <details id="export-menu">
+            <summary class="pill">export ▾</summary>
+            <div id="export-dd">
+              <span class="grouphead">this ask</span>
+              <button data-fmt="md"><b>.md</b><span>reading list with notes</span></button>
+              <button data-fmt="bib"><b>.bib</b><span>bibliography</span></button>
+              <button data-fmt="json"><b>.json</b><span>full data</span></button>
+              <hr />
+              <span class="grouphead">everything woven</span>
+              <button data-fmt="md" data-all="1"><b>.md</b><span>one file, a section per ask</span></button>
+              <button data-fmt="bib" data-all="1"><b>.bib</b><span>one deduped bibliography</span></button>
+              <button data-fmt="json" data-all="1"><b>.json</b><span>keyed by ask</span></button>
+            </div>
+          </details>
         </div>
         <div id="panel">
           <button id="back" aria-label="close">←</button>

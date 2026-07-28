@@ -76,6 +76,12 @@ const ASKS: Record<Ask, { mode: WeaveMode; preset: keyof typeof PRESETS; sort: '
   since: { mode: 'shoots', preset: 'catchup', sort: 'score' },
   now: { mode: 'shoots', preset: 'catchup', sort: 'year' },
 }
+const ASK_DESCS: Record<Ask, string> = {
+  canon: 'the core reading list — the most influential papers around your seeds, ancestors and descendants together',
+  groundwork: 'what your seeds are built on — their references, and the references of those',
+  since: 'what grew from your seeds — downstream work, ranked by influence and momentum',
+  now: 'the newest work downstream of your seeds — sorted by date, not influence',
+}
 let ask: Ask = 'canon'
 let oldestFirst = false // groundwork's order toggle: chronological ancestry
 let weaveMode: WeaveMode = 'both'
@@ -395,9 +401,19 @@ function syncAskUI() {
   document
     .querySelectorAll<HTMLButtonElement>('#preset button[data-a]')
     .forEach((x) => x.classList.toggle('on', x.dataset.a === ask))
+  $('ask-desc').textContent = ASK_DESCS[ask]
   $('order-line').hidden = ask !== 'groundwork'
   $('oldest').classList.toggle('on', oldestFirst)
   $('order-score').classList.toggle('on', !oldestFirst)
+}
+
+$('ask-legend').append(
+  ...(Object.entries(ASK_DESCS) as [Ask, string][]).flatMap(([a, d]) => [el('b', '', a), el('span', '', d)]),
+)
+$('ask-help').onclick = () => {
+  const legend = $('ask-legend')
+  legend.hidden = !legend.hidden
+  $('ask-help').classList.toggle('on', !legend.hidden)
 }
 
 document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((b) => {
@@ -1081,38 +1097,60 @@ $('copy-link').onclick = async (e) => {
   setTimeout(() => (b.textContent = 'copy link'), 1200)
 }
 
-$('export-md').onclick = () => {
-  if (!corpus) return
-  const lines = [
-    '# Ariadne corpus',
-    '',
-    `Seeds: ${seeds.map((s) => s.title).join(' · ')}`,
-    `Papers: ${corpus.works.length} · ranked by composite influence (foundational 35%, bridge 25%, momentum 20%, relevance 20%)`,
-    '',
-  ]
-  order.filter((i) => flags[corpus!.works[i].id] !== 'hide').forEach((i, rank) => {
-    const w = corpus!.works[i]
-    const m = metrics[i]
-    lines.push(`## ${rank + 1}. ${w.title} (${w.year})${w.isSeed ? ' — SEED' : ''}${flags[w.id] === 'star' ? ' ★' : ''}`)
-    lines.push(`- Authors: ${w.authors.slice(0, 8).join(', ')}${w.authors.length > 8 ? ' et al.' : ''}`)
-    if (w.venue) lines.push(`- Published in: ${w.venue}`)
-    if (w.doi) lines.push(`- DOI: ${w.doi}`)
-    if (w.pdf) lines.push(`- PDF (open access): ${w.pdf}`)
-    lines.push(`- Score: ${m.score.toFixed(2)} (foundational ${m.parts.foundational.toFixed(2)}, bridge ${m.parts.bridge.toFixed(2)}, momentum ${m.parts.momentum.toFixed(2)}, relevance ${m.parts.relevance.toFixed(2)})`)
-    lines.push(`- Why it matters: ${why(w, m)}`)
-    if (w.abstract) lines.push(`\n> ${w.abstract}`)
-    lines.push('')
-  })
+// what an export walks: the current view, or one section per woven direction
+// ('now' shares since's corpus — same papers, so no fourth section)
+function exportSections(all: boolean) {
+  if (!all) return corpus ? [{ label: '', c: corpus, ms: metrics, ord: order }] : []
+  const out: { label: string; c: Corpus; ms: Metrics[]; ord: number[] }[] = []
+  for (const a of ['canon', 'groundwork', 'since'] as const) {
+    const c = corpora[ASKS[a].mode]
+    if (!c) continue
+    const ms = computeMetrics(c.works, c.edges, PRESETS[ASKS[a].preset], ASKS[a].mode === 'roots')
+    const ord = c.works.map((_, i) => i).sort((x, y) => ms[y].score - ms[x].score)
+    out.push({ label: a, c, ms, ord })
+  }
+  return out
+}
+
+const visible = (c: Corpus, ord: number[]) => ord.filter((i) => flags[c.works[i].id] !== 'hide')
+
+function exportMd(all: boolean) {
+  const secs = exportSections(all)
+  if (!secs.length) return
+  const lines = ['# Ariadne corpus', '', `Seeds: ${seeds.map((s) => s.title).join(' · ')}`, '']
+  for (const { label, c, ms, ord } of secs) {
+    const h = label ? '###' : '##'
+    if (label) lines.push(`## ${label} — ${ASK_DESCS[label as Ask]}`, '')
+    const vis = visible(c, ord)
+    lines.push(`Papers: ${vis.length} · ranked by composite influence`, '')
+    vis.forEach((i, rank) => {
+      const w = c.works[i]
+      const m = ms[i]
+      lines.push(`${h} ${rank + 1}. ${w.title} (${w.year})${w.isSeed ? ' — SEED' : ''}${flags[w.id] === 'star' ? ' ★' : ''}`)
+      lines.push(`- Authors: ${w.authors.slice(0, 8).join(', ')}${w.authors.length > 8 ? ' et al.' : ''}`)
+      if (w.venue) lines.push(`- Published in: ${w.venue}`)
+      if (w.doi) lines.push(`- DOI: ${w.doi}`)
+      if (w.pdf) lines.push(`- PDF (open access): ${w.pdf}`)
+      lines.push(`- Score: ${m.score.toFixed(2)} (foundational ${m.parts.foundational.toFixed(2)}, bridge ${m.parts.bridge.toFixed(2)}, momentum ${m.parts.momentum.toFixed(2)}, relevance ${m.parts.relevance.toFixed(2)})`)
+      lines.push(`- Why it matters: ${why(w, m)}`)
+      if (w.abstract) lines.push(`\n> ${w.abstract}`)
+      lines.push('')
+    })
+  }
   download('ariadne-corpus.md', lines.join('\n'), 'text/markdown')
 }
 
-$('export-bib').onclick = () => {
-  if (!corpus) return
+function exportBib(all: boolean) {
+  const secs = exportSections(all)
+  if (!secs.length) return
   const used = new Set<string>()
-  const entries = order
-    .filter((i) => flags[corpus!.works[i].id] !== 'hide')
-    .map((i) => {
-      const w = corpus!.works[i]
+  const seen = new Set<string>()
+  const entries: string[] = []
+  for (const { c, ord } of secs)
+    for (const i of visible(c, ord)) {
+      const w = c.works[i]
+      if (seen.has(w.id)) continue
+      seen.add(w.id)
       let key = `${(w.authors[0] ?? 'anon').split(' ').pop()}${w.year || ''}`
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '')
@@ -1125,28 +1163,41 @@ $('export-bib').onclick = () => {
         w.venue ? `  journal = {${w.venue}}` : '',
         w.doi ? `  doi = {${stripDoi(w.doi)}}` : '',
       ].filter(Boolean)
-      return `@article{${key},\n${fields.join(',\n')}\n}`
-    })
+      entries.push(`@article{${key},\n${fields.join(',\n')}\n}`)
+    }
   download('ariadne-corpus.bib', entries.join('\n\n') + '\n', 'text/plain')
 }
 
-$('export-json').onclick = () => {
-  if (!corpus) return
-  const data = order
-    .filter((i) => flags[corpus!.works[i].id] !== 'hide')
-    .map((i, rank) => {
-      const w = corpus!.works[i]
+function exportJson(all: boolean) {
+  const secs = exportSections(all)
+  if (!secs.length) return
+  const rows = ({ c, ms, ord }: (typeof secs)[number]) =>
+    visible(c, ord).map((i, rank) => {
+      const w = c.works[i]
       return {
         rank: rank + 1,
         ...w,
         starred: flags[w.id] === 'star',
-        score: metrics[i].score,
-        parts: metrics[i].parts,
-        why: why(w, metrics[i]),
+        score: ms[i].score,
+        parts: ms[i].parts,
+        why: why(w, ms[i]),
       }
     })
+  const data = all ? Object.fromEntries(secs.map((s) => [s.label, rows(s)])) : rows(secs[0])
   download('ariadne-corpus.json', JSON.stringify(data, null, 2), 'application/json')
 }
+
+const EXPORTERS: Record<string, (all: boolean) => void> = { md: exportMd, bib: exportBib, json: exportJson }
+const exportMenu = $<HTMLDetailsElement>('export-menu')
+document.addEventListener('click', (e) => {
+  if (!exportMenu.contains(e.target as Node)) exportMenu.open = false
+})
+exportMenu.querySelectorAll<HTMLButtonElement>('button[data-fmt]').forEach((b) => {
+  b.onclick = () => {
+    exportMenu.open = false
+    EXPORTERS[b.dataset.fmt!](b.dataset.all === '1')
+  }
+})
 
 // --- remember the weave ---
 ;(async () => {
