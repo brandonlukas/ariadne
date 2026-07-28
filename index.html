@@ -41,8 +41,10 @@
 
     #main { flex: 1; display: flex; min-height: 0; }
 
+    /* short windows: the seed list gives up height first (it scrolls itself),
+       the ranked list keeps a floor, and the column scrolls if even that fails */
     #sidebar { width: 316px; flex-shrink: 0; display: flex; flex-direction: column;
-      border-right: 1px solid var(--hairline); }
+      border-right: 1px solid var(--hairline); overflow-y: auto; }
     #seed-form { display: flex; gap: 8px; padding: 18px 18px 0 22px; }
     #seed-input { flex: 1; background: var(--paper); border: 1px solid var(--hairline);
       border-radius: 999px; padding: 8px 14px; color: var(--ink); font: inherit; outline: none; }
@@ -65,8 +67,8 @@
     #picker .tag { color: var(--faint); border: 1px solid var(--hairline); border-radius: 999px;
       padding: 0 7px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
     #seed-chips { list-style: none; margin: 10px 0 0; padding: 0 18px 0 22px; display: flex;
-      flex-direction: column; gap: 5px; }
-    #seed-chips li { display: flex; align-items: center; gap: 8px;
+      flex-direction: column; gap: 5px; overflow-y: auto; min-height: 56px; }
+    #seed-chips li { flex-shrink: 0; display: flex; align-items: center; gap: 8px;
       border: 1px solid var(--hairline);
       border-radius: 8px; padding: 6px 10px; font-size: 12px; }
     #seed-chips li::before { content: ''; width: 7px; height: 7px; border-radius: 50%;
@@ -124,7 +126,7 @@
     #tabs button.on { color: var(--ink); }
     #tabs button:hover { color: var(--gray); }
     #lenses { flex: 1; overflow-y: auto; border-top: 1px solid var(--hairline);
-      padding: 8px 18px 10px 22px; font-size: 11px; color: var(--gray); }
+      padding: 8px 18px 10px 22px; font-size: 11px; color: var(--gray); min-height: 160px; }
     #lenses .row { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; cursor: pointer; }
     #lenses .row .n { width: 140px; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; flex-shrink: 0; }
@@ -173,12 +175,16 @@
     #order-line button:hover { color: var(--gray); }
 
     #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
-      border-top: 1px solid var(--hairline); }
+      border-top: 1px solid var(--hairline); min-height: 160px; }
     #ranked li[hidden] { display: none; }
     #ranked li { display: flex; gap: 12px; padding: 11px 18px 11px 22px;
       border-bottom: 1px solid var(--hairline); cursor: pointer; }
     #ranked li:hover, #ranked li.hover { background: var(--hover); }
     #ranked li.active { background: var(--sel); }
+    /* seeds carry the thread — tint each state so hover/select still read */
+    #ranked li.seed { background: color-mix(in srgb, var(--thread) 8%, var(--paper)); }
+    #ranked li.seed:hover, #ranked li.seed.hover { background: color-mix(in srgb, var(--thread) 11%, var(--hover)); }
+    #ranked li.seed.active { background: color-mix(in srgb, var(--thread) 14%, var(--sel)); }
     #ranked .rank { color: var(--faint); font-size: 11px; padding-top: 2px; min-width: 16px;
       text-align: right; font-variant-numeric: tabular-nums; }
     #ranked .body { flex: 1; min-width: 0; }
@@ -315,6 +321,8 @@
     #panel .conn .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; }
     #panel .conn:hover .t { color: var(--thread); }
+    #panel .conn.seed .t, #panel .conn.seed .y { color: var(--thread); }
+    #panel .conn.seed:hover .t { text-decoration: underline; }
     button:focus-visible, a:focus-visible, li:focus-visible, input:focus-visible {
       outline: 2px solid var(--thread); outline-offset: 2px; }
   </style>

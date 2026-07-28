@@ -100,11 +100,16 @@ let order: number[] = []
 let byId = new Map<string, number>()
 let yearSpan: [number, number] = [0, 0]
 
+let hoverFallbackT = 0
 const renderer = createRenderer($<HTMLCanvasElement>('canvas'), {
   onHover(id) {
     for (const li of rankedEl.children) li.classList.toggle('hover', (li as HTMLElement).dataset.id === id)
-    const li = id ? rankedEl.querySelector<HTMLElement>(`li[data-id="${id}"]`) : null
-    li?.scrollIntoView({ block: 'nearest' })
+    // hover ends -> fall back to the open paper, so the list doesn't stay parked
+    // on whatever was hovered last; debounced so sweeping across nodes doesn't twitch
+    clearTimeout(hoverFallbackT)
+    if (id) rankedEl.querySelector<HTMLElement>(`li[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' })
+    else hoverFallbackT = window.setTimeout(() =>
+      rankedEl.querySelector<HTMLElement>('li.active')?.scrollIntoView({ block: 'nearest' }), 250)
   },
   onSelect(id) {
     if (id === null) {
@@ -779,6 +784,7 @@ function renderList() {
       const li = el('li')
       li.dataset.id = w.id
       li.tabIndex = 0
+      if (w.isSeed) li.classList.add('seed')
       const body = el('div', 'body')
       const meta = el('div', 'meta', `${w.authors[0] ?? 'Unknown'}${w.authors.length > 1 ? ' et al.' : ''}, ${w.year}`)
       if (w.isSeed) meta.append(el('span', 'seed-mark', ' — seed'))
@@ -1088,7 +1094,7 @@ function openDetails(i: number) {
     panelBody.append(el('div', 'ch', `${label} · ${idxs.length} in this weave`))
     for (const j of idxs.sort(byScore)) {
       const w2 = corpus!.works[j]
-      const row = el('div', 'conn')
+      const row = el('div', w2.isSeed ? 'conn seed' : 'conn')
       row.append(el('span', 'y', String(w2.year || '—')), el('span', 't', w2.title))
       row.title = w2.title
       row.onmouseenter = () => renderer.highlight(w2.id)
