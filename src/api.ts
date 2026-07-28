@@ -3,7 +3,7 @@ export interface Work {
   title: string
   year: number
   citedBy: number
-  type: string // 'preprint' | 'article' | …
+  preprint: boolean
   authors: string[]
   venue: string | null
   arxivId: string | null
@@ -23,7 +23,7 @@ export interface Corpus {
 const API = 'https://api.openalex.org'
 const MAILTO = 'brandonlukas@gmail.com'
 const SELECT =
-  'id,display_name,publication_year,cited_by_count,type,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
+  'id,display_name,publication_year,cited_by_count,authorships,primary_location,locations,referenced_works,counts_by_year,doi,abstract_inverted_index,best_oa_location'
 const CITERS_PER_SEED = 50
 
 // bring-your-own OpenAlex key: anonymous use shares a $0.10/day per-IP budget;
@@ -102,7 +102,10 @@ function parseWork(j: any): Work {
     title: j.display_name ?? '(untitled)',
     year: j.publication_year ?? 0,
     citedBy: j.cited_by_count ?? 0,
-    type: j.type ?? 'article',
+    // OpenAlex's own `type` field mislabels thousands of journal articles as
+    // 'preprint' (Cytoscape, GATK, … are all typed preprint under Genome
+    // Research); who hosts the primary copy is the signal that holds
+    preprint: j.primary_location?.source?.type === 'repository',
     authors: (j.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
     venue: j.primary_location?.source?.display_name ?? null,
     arxivId,

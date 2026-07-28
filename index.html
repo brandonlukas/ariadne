@@ -53,7 +53,7 @@
       border-radius: 999px; padding: 0 16px; }
     #add-seed:hover { border-color: var(--faint); }
     #picker { list-style: none; margin: 8px 0 0; padding: 0 18px 0 22px; display: flex;
-      flex-direction: column; gap: 4px; }
+      flex-direction: column; gap: 4px; max-height: 40vh; overflow-y: auto; }
     #picker:empty { display: none; }
     #picker li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 8px; cursor: pointer;
       border: 1px dashed var(--hairline); border-radius: 8px; padding: 6px 10px;
@@ -71,10 +71,13 @@
       border-radius: 8px; padding: 6px 10px; font-size: 12px; }
     #seed-chips li::before { content: ''; width: 7px; height: 7px; border-radius: 50%;
       background: var(--thread); flex-shrink: 0; }
-    #seed-chips .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #seed-chips .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      background: none; border: none; padding: 0; font: inherit; color: inherit; text-align: left;
+      cursor: pointer; }
+    #seed-chips .t:hover { color: var(--thread); }
     #seed-chips .y { color: var(--faint); }
-    #seed-chips button { background: none; border: none; color: var(--faint); padding: 0 2px; font-size: 14px; }
-    #seed-chips button:hover { color: var(--ink); }
+    #seed-chips .x { background: none; border: none; color: var(--faint); padding: 0 2px; font-size: 14px; }
+    #seed-chips .x:hover { color: var(--ink); }
     #weave { margin: 12px 18px 0 22px; padding: 9px; background: var(--thread); color: #fff;
       border: none; border-radius: 999px; letter-spacing: 0.01em; }
     #weave:hover:not(:disabled) { background: #c72a48; }

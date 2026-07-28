@@ -239,12 +239,15 @@ function renderChips() {
   chipsEl.replaceChildren(
     ...seeds.map((s, i) => {
       const li = el('li')
-      const t = el('span', 't', s.title)
-      t.title = s.title
+      const t = el('button', 't', s.title)
+      t.title = 'see the full record'
+      t.onclick = () => openSeedDetails(s)
       const y = el('span', 'y', String(s.year))
-      const x = el('button', '', '×')
+      const x = el('button', 'x', '×')
+      x.title = 'remove this seed'
       x.onclick = () => {
         seeds.splice(i, 1)
+        if (panelId === s.id) panelEl.classList.remove('open')
         renderChips()
       }
       li.append(t, y, x)
@@ -289,7 +292,7 @@ async function addSeed() {
     if (idLike(q)) {
       pushSeed(await resolveSeed(q))
     } else {
-      const results = await searchSeeds(q, 3)
+      const results = await searchSeeds(q, 10)
       if (!results.length)
         throw new Error(
           `No paper found for “${q}” — very recent papers reach OpenAlex on a delay; pasting the DOI or arXiv link often works sooner`,
@@ -302,7 +305,7 @@ async function addSeed() {
           ...results.map((w) => {
             const surname = w.authors[0]?.split(' ').pop() ?? '?'
             const meta = `${w.venue ? w.venue + ' · ' : ''}${surname} ${w.year}`
-            return pickerRow(w.title, meta, w.type === 'preprint', w.citedBy, () => {
+            return pickerRow(w.title, meta, w.preprint, w.citedBy, () => {
               pickerEl.replaceChildren()
               pushSeed(w)
             })
@@ -970,6 +973,45 @@ function why(w: Work, m: Metrics): string {
   return s.charAt(0).toUpperCase() + s.slice(1) + '.'
 }
 
+// title, authors, provenance, abstract — everything OpenAlex hands us about a
+// paper, independent of any weave
+function paperHead(w: Work) {
+  const meta = [w.venue, String(w.year), `cited ${w.citedBy.toLocaleString()} times`, w.preprint && 'preprint']
+  return [
+    el('h2', '', w.title),
+    el('div', 'byline', w.authors.slice(0, 6).join(', ') + (w.authors.length > 6 ? ' et al.' : '')),
+    el('div', 'date', meta.filter(Boolean).join(' · ')),
+    ...(w.abstract ? [el('p', 'desc', w.abstract)] : []),
+  ]
+}
+
+function linkPills(w: Work) {
+  const pills = el('div', 'pills')
+  const open = el('a', 'pill', 'open paper ↗')
+  open.href = w.doi ?? `https://openalex.org/${w.id}`
+  open.target = '_blank'
+  pills.append(open)
+  if (w.pdf) {
+    const pdf = el('a', 'pill', 'pdf ↗')
+    pdf.href = w.pdf
+    pdf.target = '_blank'
+    pdf.title = 'open-access copy'
+    pills.append(pdf)
+  }
+  return pills
+}
+
+// a seed chip before weaving has no metrics or neighborhood to show — just the
+// record, so you can confirm you picked the right paper without weaving first
+function openSeedDetails(w: Work) {
+  const i = byId.get(w.id)
+  if (corpus && i !== undefined) return openDetails(i) // woven: the full panel earns its place
+  panelBody.replaceChildren(...paperHead(w), linkPills(w))
+  if (panelId !== w.id) panelEl.scrollTop = 0
+  panelId = w.id
+  panelEl.classList.add('open')
+}
+
 function openDetails(i: number) {
   if (!corpus) return
   const w = corpus.works[i]
@@ -978,12 +1020,7 @@ function openDetails(i: number) {
   rankedEl.querySelector<HTMLElement>(`li[data-id="${w.id}"]`)?.scrollIntoView({ block: 'nearest' })
   renderer.select(w.id)
 
-  panelBody.replaceChildren(
-    el('h2', '', w.title),
-    el('div', 'byline', w.authors.slice(0, 6).join(', ') + (w.authors.length > 6 ? ' et al.' : '')),
-    el('div', 'date', `${w.venue ? w.venue + ' · ' : ''}${w.year} · cited ${w.citedBy.toLocaleString()} times`),
-  )
-  if (w.abstract) panelBody.append(el('p', 'desc', w.abstract))
+  panelBody.replaceChildren(...paperHead(w))
   if (panelId !== w.id) panelEl.scrollTop = 0 // new paper starts at the top; ai-text swaps don't jump
   panelId = w.id
   const whyEl = el('p', 'why')
@@ -1013,18 +1050,7 @@ function openDetails(i: number) {
     row.append(el('span', '', name), track, el('em', '', v.toFixed(2)))
     panelBody.append(row)
   }
-  const pills = el('div', 'pills')
-  const open = el('a', 'pill', 'open paper ↗')
-  open.href = w.doi ?? `https://openalex.org/${w.id}`
-  open.target = '_blank'
-  pills.append(open)
-  if (w.pdf) {
-    const pdf = el('a', 'pill', 'pdf ↗')
-    pdf.href = w.pdf
-    pdf.target = '_blank'
-    pdf.title = 'open-access copy'
-    pills.append(pdf)
-  }
+  const pills = linkPills(w)
   const setFlag = (kind: 'star' | 'hide') => {
     if (flags[w.id] === kind) delete flags[w.id]
     else flags[w.id] = kind
