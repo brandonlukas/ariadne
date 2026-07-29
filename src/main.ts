@@ -508,7 +508,6 @@ function present() {
   setTab('papers')
   lens = null
   applyBrush(null)
-  $('counts').innerHTML = `<b>${corpus.works.length}</b> papers &nbsp;·&nbsp; <b>${corpus.edges.length}</b> citations`
   $('stage').classList.add('woven')
   document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
 }
