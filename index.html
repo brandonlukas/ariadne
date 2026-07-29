@@ -382,22 +382,21 @@
 
     /* phones: stack the panes — seeds on top, graph below, panel over everything.
        #divider snaps the split: m-list gives the screen to the list (the graph
-       keeps its mode strip), m-graph the reverse (the list keeps its tabs strip) */
+       vanishes behind the handle), m-graph the reverse — either pane can fully hide */
     @media (max-width: 720px) {
       nav .tagline { display: none; }
       #main { flex-direction: column; }
       #divider { display: flex; }
       #sidebar { width: auto; flex: 0 0 45dvh; border-right: none; min-height: 0;
         transition: flex-basis 0.32s cubic-bezier(.2,.7,.2,1); }
-      #main.m-list #sidebar { flex-basis: calc(100% - 62px); } /* 26 handle + 36 strip */
-      #main.m-graph #sidebar { flex-basis: 36px; overflow: hidden; }
-      /* the collapsed sidebar strip should show the tabs row, not the fold bar */
-      #main.m-graph #fold { display: none; }
+      #main.m-list #sidebar { flex-basis: calc(100% - 26px); } /* only the handle remains */
+      #main.m-graph #sidebar { flex-basis: 0; overflow: hidden; }
       #stage { flex: 1; min-height: 0; }
-      #modes { top: 10px; } /* the collapsed 36px strip must show the mode row */
-      /* collapsed graph keeps only the mode strip — the bottom chrome would pile up */
+      #modes { top: 10px; }
+      /* collapsed graph shows nothing — all chrome hides with it */
       #main.m-list #stage.woven #years, #main.m-list #stage.woven #year-ticks,
-      #main.m-list #stage.woven #toolbar, #main.m-list #stage.woven #hint { display: none; }
+      #main.m-list #stage.woven #toolbar, #main.m-list #stage.woven #hint,
+      #main.m-list #stage.woven #modes { display: none; }
       /* fixed, not absolute: the panel must get the whole screen even while
          its parent stage is collapsed to a strip */
       #panel { position: fixed; inset: 0; width: auto; }

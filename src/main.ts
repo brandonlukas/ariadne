@@ -113,7 +113,7 @@ const renderer = createRenderer($<HTMLCanvasElement>('canvas'), {
   },
   onSelect(id) {
     if (id === null) {
-      panelEl.classList.remove('open')
+      hidePanel()
       for (const li of rankedEl.children) li.classList.remove('active')
     } else {
       openDetails(byId.get(id)!)
@@ -121,8 +121,31 @@ const renderer = createRenderer($<HTMLCanvasElement>('canvas'), {
   },
 })
 
-$('back').onclick = () => {
+// the panel is a history entry, so the browser's native back gesture closes it
+let panelPushed = false
+function showPanel() {
+  if (!panelEl.classList.contains('open')) {
+    history.pushState({ panel: true }, '')
+    panelPushed = true
+  }
+  panelEl.classList.add('open')
+}
+function hidePanel() {
   panelEl.classList.remove('open')
+  if (panelPushed) {
+    panelPushed = false
+    history.back()
+  }
+}
+addEventListener('popstate', () => {
+  if (panelEl.classList.contains('open')) {
+    panelPushed = false // the browser already popped the entry
+    $('back').click()
+  }
+})
+
+$('back').onclick = () => {
+  hidePanel()
   renderer.select(null)
   for (const li of rankedEl.children) li.classList.remove('active')
 }
@@ -270,7 +293,7 @@ function renderChips() {
       x.title = 'remove this seed'
       x.onclick = () => {
         seeds.splice(i, 1)
-        if (panelId === s.id) panelEl.classList.remove('open')
+        if (panelId === s.id) hidePanel()
         renderChips()
       }
       li.append(t, y, x)
@@ -750,7 +773,7 @@ $('div-down').onclick = () =>
 
 weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
-  panelEl.classList.remove('open')
+  hidePanel()
   try {
     const built = await buildCorpus(seeds, status, weaveMode)
     if (seedKey() !== wovenKey) {
@@ -1045,7 +1068,7 @@ function openSeedDetails(w: Work) {
   panelBody.replaceChildren(...paperHead(w), linkPills(w))
   if (panelId !== w.id) panelEl.scrollTop = 0
   panelId = w.id
-  panelEl.classList.add('open')
+  showPanel()
 }
 
 function openDetails(i: number) {
@@ -1139,7 +1162,7 @@ function openDetails(i: number) {
   group('cited by', ins)
   group('cites', outs)
 
-  panelEl.classList.add('open')
+  showPanel()
 }
 
 // --- export ---
