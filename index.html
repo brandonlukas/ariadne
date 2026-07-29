@@ -202,7 +202,7 @@
     #order-line button:hover { color: var(--gray); }
 
     #ranked { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
-      border-top: 1px solid var(--hairline); min-height: 160px; }
+      border-top: 1px solid var(--hairline); min-height: 160px; scroll-behavior: smooth; }
     #ranked li[hidden] { display: none; }
     #ranked li { display: flex; gap: 12px; padding: 11px 18px 11px 22px;
       border-bottom: 1px solid var(--hairline); cursor: pointer; }
@@ -319,7 +319,8 @@
       padding: 22px 30px; overflow-y: auto;
       transform: translateX(102%); transition: transform 0.28s cubic-bezier(.2,.7,.2,1); }
     #panel.open { transform: none; box-shadow: -24px 0 48px rgba(27,26,23,0.05); }
-    @media (prefers-reduced-motion: reduce) { #panel { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { #panel { transition: none; }
+      #ranked { scroll-behavior: auto; } }
     #back { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--hairline);
       background: var(--paper); color: var(--ink); font-size: 14px;
       margin-bottom: 18px; display: flex; align-items: center; justify-content: center; }
