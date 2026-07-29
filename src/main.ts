@@ -1,5 +1,5 @@
 import { autocompleteWorks, buildCorpus, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
-import { getKey, getLastModel, getModel, inferIntent, MODELS, setKey, setModel, whyForIntent } from './llm.ts'
+import { getAiOn, getKey, getModel, inferIntent, MODELS, setAiOn, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
@@ -156,20 +156,36 @@ function status(msg: string, isError = false) {
 
 const aiModelEl = $<HTMLInputElement>('ai-model')
 const aiFields = $('ai-fields')
-const aiToggle = $<HTMLButtonElement>('ai-toggle')
-$('ai-models').append(...MODELS.map((m) => Object.assign(el('option'), { value: m })))
+const aiPower = $<HTMLButtonElement>('ai-power')
+$('ai-models').append(...['openrouter/auto-beta', 'openrouter/auto', ...MODELS].map((m) => Object.assign(el('option'), { value: m })))
+const aiReady = () => !!getKey() && getAiOn()
 const aiLabel = () => {
-  const on = !!getKey()
-  const model = getLastModel().split('/').pop()?.replace(':free', '')
-  $('ai-status').textContent = on ? (model ? `ai · ${model}` : 'ai on') : 'ai off'
+  const on = aiReady()
+  const model = getModel().split('/').pop()?.replace(':free', '')
+  $('ai-status').textContent = on ? `ai · ${model}` : getKey() ? 'ai paused' : 'ai off'
   $('alex-status').textContent = getAlexKey() ? 'openalex ✓' : 'openalex'
-  aiToggle.classList.toggle('on', on)
+  aiPower.classList.toggle('on', on)
+  aiPower.classList.toggle('paused', !on && !!getKey())
 }
-aiToggle.onclick = () => {
-  aiFields.hidden = !aiFields.hidden
-  if (!aiFields.hidden) aiModelEl.value = getModel()
+// the cog opens the callout via popovertarget; the model field tracks storage
+aiFields.ontoggle = () => {
+  if (aiFields.matches(':popover-open')) aiModelEl.value = getModel()
 }
-aiModelEl.onchange = () => setModel(aiModelEl.value.trim())
+aiPower.onclick = () => {
+  if (!getKey()) return aiFields.showPopover() // nothing to switch — show where the key goes
+  setAiOn(!getAiOn())
+  aiLabel()
+  if (aiReady()) maybeInferIntent()
+}
+aiModelEl.onchange = () => {
+  setModel(aiModelEl.value.trim())
+  aiModelEl.value = getModel() // clearing the field shows the default it fell back to
+  aiLabel()
+  aiModelEl.parentElement?.querySelector('.saved')?.remove()
+  const ok = el('span', 'saved', '✓ saved')
+  aiModelEl.insertAdjacentElement('afterend', ok)
+  setTimeout(() => ok.remove(), 1600)
+}
 
 // a stored key renders as a masked chip with its own forget button; an empty one
 // renders as an input — on/off is the storage itself, no separate switch to drift
@@ -223,7 +239,7 @@ function renderIntent() {
 }
 
 async function maybeInferIntent() {
-  if (!corpus || !getKey() || intent) return
+  if (!corpus || !aiReady() || intent) return
   const line = $('intent-line')
   line.onclick = null
   line.style.cursor = ''
@@ -233,7 +249,6 @@ async function maybeInferIntent() {
     intent = await inferIntent(corpus.works.filter((w) => w.isSeed))
     saveStore()
     renderIntent()
-    aiLabel() // now we know which model answered
   } catch (err) {
     line.textContent = `✦ ${err instanceof Error ? err.message : String(err)} — tap to retry`
     line.style.cursor = 'pointer'
@@ -482,8 +497,8 @@ function present() {
   $('gallery').replaceChildren()
   galleryStale = true
   renderYears()
-  renderFacts()
   renderIntent()
+  $('fold').hidden = false
   $('tabs').hidden = false
   $('list-tools').hidden = false
   $('preset').hidden = false
@@ -659,17 +674,6 @@ yearsEl.onpointerup = () => {
   brushFrom = null
 }
 
-// --- corpus facts ---
-
-function renderFacts() {
-  if (!corpus) return
-  const works = corpus.works
-  const factsEl = $('facts')
-  const recent = Math.round((works.filter((w) => w.year >= new Date().getFullYear() - 2).length / works.length) * 100)
-  factsEl.replaceChildren(el('b', '', 'span — '), document.createTextNode(`${yearSpan[0]}–${yearSpan[1]} · ${recent}% from the last 3 years`))
-  factsEl.hidden = false
-}
-
 // --- sidebar tabs: papers | venues | authors ---
 
 const lensesEl = $('lenses')
@@ -724,7 +728,26 @@ document.querySelectorAll<HTMLElement>('#tabs button[data-t]').forEach((b) => {
   b.onclick = () => setTab(b.dataset.t as typeof tab)
 })
 
-$('list-max').onclick = () => $('sidebar').classList.toggle('folded')
+// the fold divider collapses the seed panel — the desktop cousin of #divider
+const setFold = (f: boolean) => {
+  $('sidebar').classList.toggle('folded', f)
+  $<HTMLButtonElement>('fold-up').disabled = f
+  $<HTMLButtonElement>('fold-down').disabled = !f
+}
+$('fold-up').onclick = () => setFold(true)
+$('fold-down').onclick = () => setFold(false)
+
+// phones: the divider chevrons snap the stack between list / split / graph
+const setSplit = (s: 'list' | 'split' | 'graph') => {
+  $('main').classList.toggle('m-list', s === 'list')
+  $('main').classList.toggle('m-graph', s === 'graph')
+  $<HTMLButtonElement>('div-up').disabled = s === 'graph'
+  $<HTMLButtonElement>('div-down').disabled = s === 'list'
+}
+$('div-up').onclick = () =>
+  setSplit($('main').classList.contains('m-list') ? 'split' : 'graph')
+$('div-down').onclick = () =>
+  setSplit($('main').classList.contains('m-graph') ? 'split' : 'list')
 
 weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
@@ -742,7 +765,7 @@ weaveBtn.onclick = async () => {
     writeHash()
     saveStore()
     present()
-    $('sidebar').classList.add('folded') // the weave is up — give the sidebar to the list
+    setSplit('split') // if a phone had collapsed a pane, the new graph reopens it
     status('')
     maybeInferIntent()
   } catch (err) {
@@ -1043,7 +1066,7 @@ function openDetails(i: number) {
     el('b', '', ai ? '✦ why it matters for your thread' : 'why it matters'),
     document.createTextNode(' — ' + (ai ?? why(w, m))),
   )
-  if (!ai && getKey() && intent) {
+  if (!ai && aiReady() && intent) {
     whyEl.append(el('span', '', ' ✦…'))
     whyForIntent(intent, w, m, corpus.works.filter((x) => x.isSeed).map((x) => x.title))
       .then((t) => {
@@ -1255,10 +1278,7 @@ exportMenu.querySelectorAll<HTMLButtonElement>('button[data-fmt]').forEach((b) =
       aiWhy = saved.aiWhy ?? {}
       wovenKey = seedKey()
       renderChips()
-      if (corpus) {
-        present()
-        $('sidebar').classList.add('folded')
-      }
+      if (corpus) present()
       maybeInferIntent() // a key may be set while the last session's intent isn't
     }
   } catch {} // corrupt store — start fresh

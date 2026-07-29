@@ -15,11 +15,16 @@ export const MODELS = [
 ]
 
 let lastModel = ''
-export const getLastModel = () => lastModel
 
 export const getKey = () => localStorage.getItem(KEY) ?? ''
 export const setKey = (k: string) => (k ? localStorage.setItem(KEY, k) : localStorage.removeItem(KEY))
-export const getModel = () => localStorage.getItem(MODEL_KEY) ?? ''
+// pause switch: keep the key, stop spending credits — absent means on
+const OFF_KEY = 'ariadne:llm-off'
+export const getAiOn = () => !localStorage.getItem(OFF_KEY)
+export const setAiOn = (on: boolean) => (on ? localStorage.removeItem(OFF_KEY) : localStorage.setItem(OFF_KEY, '1'))
+// no stored preference → the auto-router picks a live model per request;
+// if the account can't use it (needs credits), ask() walks the free list after
+export const getModel = () => localStorage.getItem(MODEL_KEY) ?? 'openrouter/auto-beta'
 export const setModel = (m: string) => (m ? localStorage.setItem(MODEL_KEY, m) : localStorage.removeItem(MODEL_KEY))
 
 async function ask(prompt: string): Promise<string> {
@@ -49,6 +54,9 @@ async function ask(prompt: string): Promise<string> {
     if (!res.ok) {
       const detail = (await res.json().catch(() => null))?.error?.message ?? ''
       err = new Error(`AI request failed (${res.status})${detail ? ` — ${detail}` : ''}`)
+      // free models 404 until the account opts into publication — name the real fix
+      if (res.status === 404 && /data policy/i.test(detail))
+        err = new Error('your OpenRouter privacy settings block free models — allow "free model publication" at openrouter.ai/settings/privacy')
       // 429s are account- or pool-wide: trying more free models just burns
       // more of the same quota
       if (res.status === 429) throw err

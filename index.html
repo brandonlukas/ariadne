@@ -16,6 +16,7 @@
       --sel: #f0efeb;
       --thread: #b41f3a;
       --ok: #2e8b57;
+      --warn: #c77d1f;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -42,19 +43,33 @@
 
     #main { flex: 1; display: flex; min-height: 0; }
 
+    /* divider handles: #fold collapses the seed panel inside the sidebar,
+       #divider (phones only) snaps the stack between list / split / graph */
+    .divider { display: flex; align-items: center; justify-content: center; gap: 16px;
+      flex-shrink: 0; height: 26px; background: var(--hover);
+      border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+    .divider[hidden] { display: none; }
+    .divider .grip { width: 28px; height: 3px; border-radius: 2px; background: var(--faint); }
+    .divider button { background: none; border: none; padding: 0 22px; height: 100%;
+      color: var(--gray); display: flex; align-items: center; }
+    .divider button svg { width: 12px; height: 6px; fill: none; stroke: currentColor;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .divider button:disabled { color: var(--hairline); cursor: default; }
+    #divider { display: none; }
+    #fold { border-top: none; } /* the seed block above already ends in whitespace */
+
     /* short windows: the seed list gives up height first (it scrolls itself),
        the ranked list keeps a floor, and the column scrolls if even that fails */
     #sidebar { width: 316px; flex-shrink: 0; display: flex; flex-direction: column;
       border-right: 1px solid var(--hairline); overflow-y: auto; }
     /* #sidebar.folded: the seed-entry block and setup rows give the sidebar to the
-       ranked list; #list-max drives the fold. #status stays visible — reweave
+       ranked list; the #fold divider drives it. #status stays visible — reweave
        errors must surface even while folded */
     #seed-box { flex-shrink: 0; }
     #seed-sum { padding: 12px 18px 0 22px; font-size: 11px; color: var(--faint);
       text-transform: uppercase; letter-spacing: 0.08em; }
-    #sidebar.folded #seed-box, #sidebar.folded #ai, #sidebar.folded #intent-line,
-    #sidebar.folded #facts { display: none; }
-    #sidebar.folded #tabs { padding-top: 12px; } /* breathing room as the new first row */
+    #sidebar.folded #seed-box, #sidebar.folded #ai,
+    #sidebar.folded #intent-line { display: none; }
     #weave { display: block; width: calc(100% - 40px); }
     #seed-form { display: flex; gap: 8px; padding: 12px 18px 0 22px; }
     #seed-input { flex: 1; background: var(--paper); border: 1px solid var(--hairline);
@@ -98,16 +113,37 @@
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status:empty { display: none; }
     #status.error { color: var(--thread); }
-    #ai { padding: 0 18px 6px 22px; font-size: 11px; }
-    #ai > button { background: none; border: none; padding: 0; font-size: 11px; width: 100%;
+    #ai { padding: 12px 18px 0 22px; font-size: 11px; } /* first row of the sidebar */
+    #ai-head { display: flex; align-items: center; gap: 10px; }
+    #ai-power { background: none; border: none; padding: 0; font-size: 11px;
       color: var(--faint); display: flex; align-items: center; gap: 6px; }
-    #ai > button:hover { color: var(--gray); }
-    #ai > button.on { color: var(--gray); }
-    #ai .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hairline);
+    #ai-power:hover { color: var(--gray); }
+    #ai-power.on { color: var(--gray); }
+    /* the dot: grey — no key; pulsing green — live; amber — key kept but paused */
+    #ai-power .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hairline);
       flex-shrink: 0; }
-    #ai > button.on .dot { background: var(--ok); box-shadow: 0 0 0 3px
-      color-mix(in srgb, var(--ok) 18%, transparent); }
+    #ai-power.on .dot { background: var(--ok); animation: ai-pulse 2.4s ease-out infinite; }
+    @keyframes ai-pulse {
+      0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 40%, transparent); }
+      70%, 100% { box-shadow: 0 0 0 6px transparent; }
+    }
+    #ai-power.paused .dot { background: var(--warn); box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--warn) 18%, transparent); }
+    @media (prefers-reduced-motion: reduce) {
+      #ai-power.on .dot { animation: none; box-shadow: 0 0 0 3px
+        color-mix(in srgb, var(--ok) 18%, transparent); } }
     #alex-status { margin-left: auto; color: var(--faint); }
+    #ai-settings { background: none; border: none; padding: 3px; width: 22px; height: 22px;
+      color: var(--faint); display: flex; flex-shrink: 0; }
+    #ai-settings:hover { color: var(--ink); }
+    #ai-settings svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
+      stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    /* the key/model fields float in a callout like #ask-legend — light dismiss */
+    #ai-fields { margin: auto; width: min(360px, calc(100vw - 48px)); padding: 14px 18px 18px;
+      border: 1px solid var(--hairline); border-radius: 10px; background: var(--paper);
+      color: var(--ink); font-size: 11px;
+      box-shadow: 0 12px 40px rgba(27, 26, 23, 0.14); }
+    #ai-fields::backdrop { background: rgba(27, 26, 23, 0.18); }
     #ai .grp { margin-top: 10px; }
     #ai .grp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
       color: var(--faint); }
@@ -127,27 +163,16 @@
     #ai .keychip .forget { background: none; border: none; color: var(--faint);
       font-size: 10.5px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
     #ai .keychip .forget:hover { color: var(--thread); background: var(--sel); }
+    #ai .saved { color: var(--ok); white-space: nowrap; }
     #intent-line { padding: 0 18px 10px 22px; font-size: 11.5px; font-style: italic;
       color: var(--gray); }
     #intent-line[hidden] { display: none; }
-    #facts { padding: 0 18px 10px 22px; font-size: 11px; color: var(--gray); }
-    #facts b { font-weight: 400; color: var(--faint); }
-    #tabs { display: flex; gap: 14px; align-items: center; padding: 0 18px 8px 22px;
+    #tabs { display: flex; gap: 14px; align-items: center; padding: 12px 18px 8px 22px;
       font-size: 12px; }
     #tabs[hidden] { display: none; }
     #tabs button { background: none; border: none; padding: 0; color: var(--faint); }
     #tabs button.on { color: var(--ink); }
     #tabs button:hover { color: var(--gray); }
-    /* maximize-the-list: corner brackets point out while the seed box is open
-       (the list can still grow), in once it's folded (the seeds can come back) */
-    #tabs #list-max { margin-left: auto; width: 24px; height: 24px; padding: 5px;
-      border: 1px solid var(--hairline); border-radius: 999px; color: var(--gray);
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    #tabs #list-max:hover { border-color: var(--faint); color: var(--ink); }
-    #tabs #list-max svg { width: 100%; height: 100%; stroke: currentColor;
-      stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-    #sidebar:not(.folded) #list-max .in { display: none; }
-    #sidebar.folded #list-max .out { display: none; }
     #lenses { flex: 1; overflow-y: auto; border-top: 1px solid var(--hairline);
       padding: 8px 18px 10px 22px; font-size: 11px; color: var(--gray); min-height: 160px; }
     #lenses .row { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; cursor: pointer; }
@@ -321,7 +346,7 @@
       transform: translateX(102%); transition: transform 0.28s cubic-bezier(.2,.7,.2,1); }
     #panel.open { transform: none; box-shadow: -24px 0 48px rgba(27,26,23,0.05); }
     @media (prefers-reduced-motion: reduce) { #panel { transition: none; }
-      #ranked { scroll-behavior: auto; } }
+      #sidebar { transition: none; } #ranked { scroll-behavior: auto; } }
     #back { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--hairline);
       background: var(--paper); color: var(--ink); font-size: 14px;
       margin-bottom: 18px; display: flex; align-items: center; justify-content: center; }
@@ -330,8 +355,7 @@
       letter-spacing: -0.01em; text-wrap: balance; }
     #panel .byline { color: var(--gray); font-size: 13px; }
     #panel .date { color: var(--gray); font-size: 13px; margin-bottom: 18px; }
-    #panel .desc { font-size: 13.5px; line-height: 1.65; color: #3d3b35; margin: 0 0 18px;
-      max-height: 220px; overflow-y: auto; }
+    #panel .desc { font-size: 13.5px; line-height: 1.65; color: #3d3b35; margin: 0 0 18px; }
     #panel .why { font-size: 13px; line-height: 1.6; color: var(--gray); margin: 0 0 22px; }
     #panel .why b { font-weight: 400; color: var(--thread); }
     .meter { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 11px;
@@ -356,14 +380,27 @@
     button:focus-visible, a:focus-visible, li:focus-visible, input:focus-visible {
       outline: 2px solid var(--thread); outline-offset: 2px; }
 
-    /* phones: stack the panes — seeds on top, graph below, panel over everything */
+    /* phones: stack the panes — seeds on top, graph below, panel over everything.
+       #divider snaps the split: m-list gives the screen to the list (the graph
+       keeps its mode strip), m-graph the reverse (the list keeps its tabs strip) */
     @media (max-width: 720px) {
       nav .tagline { display: none; }
       #main { flex-direction: column; }
-      #sidebar { width: auto; max-height: 45dvh; border-right: none;
-        border-bottom: 1px solid var(--hairline); }
+      #divider { display: flex; }
+      #sidebar { width: auto; flex: 0 0 45dvh; border-right: none; min-height: 0;
+        transition: flex-basis 0.32s cubic-bezier(.2,.7,.2,1); }
+      #main.m-list #sidebar { flex-basis: calc(100% - 62px); } /* 26 handle + 36 strip */
+      #main.m-graph #sidebar { flex-basis: 36px; overflow: hidden; }
+      /* the collapsed sidebar strip should show the tabs row, not the fold bar */
+      #main.m-graph #fold { display: none; }
       #stage { flex: 1; min-height: 0; }
-      #panel { width: 100%; }
+      #modes { top: 10px; } /* the collapsed 36px strip must show the mode row */
+      /* collapsed graph keeps only the mode strip — the bottom chrome would pile up */
+      #main.m-list #stage.woven #years, #main.m-list #stage.woven #year-ticks,
+      #main.m-list #stage.woven #toolbar, #main.m-list #stage.woven #hint { display: none; }
+      /* fixed, not absolute: the panel must get the whole screen even while
+         its parent stage is collapsed to a strip */
+      #panel { position: fixed; inset: 0; width: auto; }
       #toolbar { top: 46px; } /* second row — modes own the first */
       #stage.woven #legend { display: none; } /* bottom row belongs to the hint */
       /* 16px floor: iOS zooms the page into any focused input smaller than that */
@@ -385,6 +422,27 @@
     </nav>
     <div id="main">
       <aside id="sidebar">
+        <div id="ai">
+          <div id="ai-head">
+            <button id="ai-power" title="toggle the assistant"><span class="dot"></span><span id="ai-status">ai off</span></button>
+            <span id="alex-status"></span>
+            <button id="ai-settings" popovertarget="ai-fields" aria-label="assistant settings" title="assistant settings">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+            </button>
+          </div>
+          <div id="ai-fields" popover>
+            <div class="grp">
+              <div class="grp-label">assistant · openrouter <i>— reads your seeds, explains papers</i></div>
+              <div class="row"><label>key</label><span class="slot" id="ai-key-slot"></span></div>
+              <div class="row"><label>model</label><input id="ai-model" list="ai-models" placeholder="openrouter/auto-beta" /></div>
+              <datalist id="ai-models"></datalist>
+            </div>
+            <div class="grp">
+              <div class="grp-label">data · openalex <i>— optional, 10× the daily budget</i></div>
+              <div class="row"><label>key</label><span class="slot" id="alex-key-slot"></span></div>
+            </div>
+          </div>
+        </div>
         <div id="seed-box">
           <div id="seed-sum">seeds</div>
           <form id="seed-form">
@@ -396,35 +454,20 @@
           <button id="weave" disabled>weave the graph</button>
         </div>
         <div id="status"></div>
-        <div id="ai">
-          <button id="ai-toggle"><span class="dot"></span><span id="ai-status">ai off</span><span id="alex-status"></span></button>
-          <div id="ai-fields" hidden>
-            <div class="grp">
-              <div class="grp-label">assistant · openrouter <i>— reads your seeds, explains papers</i></div>
-              <div class="row"><label>key</label><span class="slot" id="ai-key-slot"></span></div>
-              <div class="row"><label>model</label><input id="ai-model" list="ai-models" placeholder="blank picks a free one" /></div>
-              <datalist id="ai-models"></datalist>
-            </div>
-            <div class="grp">
-              <div class="grp-label">data · openalex <i>— optional, 10× the daily budget</i></div>
-              <div class="row"><label>key</label><span class="slot" id="alex-key-slot"></span></div>
-            </div>
-          </div>
-        </div>
         <div id="intent-line" hidden></div>
-        <div id="facts" hidden></div>
+        <div id="fold" class="divider" hidden>
+          <button id="fold-up" aria-label="hide the seed panel">
+            <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 5 6 1 11 5" /></svg>
+          </button>
+          <span class="grip"></span>
+          <button id="fold-down" aria-label="show the seed panel" disabled>
+            <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 1 6 5 11 1" /></svg>
+          </button>
+        </div>
         <div id="tabs" hidden>
           <button data-t="papers" class="on">papers</button>
           <button data-t="venues">venues</button>
           <button data-t="authors">authors</button>
-          <button id="list-max" title="expand or restore the list" aria-label="toggle the seed panel">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <g class="out"><polyline points="15 3 21 3 21 9" /><line x1="21" y1="3" x2="14" y2="10" />
-                <polyline points="9 21 3 21 3 15" /><line x1="3" y1="21" x2="10" y2="14" /></g>
-              <g class="in"><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" />
-                <polyline points="4 14 10 14 10 20" /><line x1="3" y1="21" x2="10" y2="14" /></g>
-            </svg>
-          </button>
         </div>
         <div id="list-tools" hidden>
           <input id="find" placeholder="filter…" />
@@ -447,6 +490,15 @@
         <ol id="ranked"></ol>
         <div id="lenses" hidden></div>
       </aside>
+      <div id="divider" class="divider">
+        <button id="div-up" aria-label="give the screen to the graph">
+          <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 5 6 1 11 5" /></svg>
+        </button>
+        <span class="grip"></span>
+        <button id="div-down" aria-label="give the screen to the list">
+          <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 1 6 5 11 1" /></svg>
+        </button>
+      </div>
       <main id="stage">
         <canvas id="canvas"></canvas>
         <div id="empty"><div>Add one or more seed papers,<br />then weave the graph.<br />
