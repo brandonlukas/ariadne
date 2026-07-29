@@ -1334,7 +1334,7 @@ exportMenu.querySelectorAll<HTMLButtonElement>('button[data-fmt]').forEach((b) =
       renderChips()
       // no autoweave: the harvest is the expensive part, and it would spend the
       // link recipient's API budget before they've even seen the seeds
-      status(`${seeds.length} seed${seeds.length === 1 ? '' : 's'} from link — weave when ready`)
+      status('')
     } catch (err) {
       status(err instanceof Error ? err.message : String(err), true)
     }
