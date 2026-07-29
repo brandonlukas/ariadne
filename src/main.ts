@@ -27,14 +27,6 @@ const RAMP_LIGHT = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3
 const RAMP_DARK = ['#5f5c52', '#716d61', '#837f71', '#969282', '#aaa697', '#c9c5b6', '#e8e6e0']
 const darkMq = matchMedia('(prefers-color-scheme: dark)')
 
-const HINTS: Record<ViewMode | 'gallery', string> = {
-  constellation: `drag to pan · ${matchMedia('(pointer: coarse)').matches ? 'pinch' : 'scroll'} to zoom · touch a paper to find its thread`,
-  circle: 'rings — steps outward from your seeds · touch a paper to find its thread',
-  sphere: 'drag to rotate · touch a paper to find its thread',
-  timeline: 'time flows left to right — citations point into the past · touch a paper to find its thread',
-  gallery: 'figure 1 from each paper — arXiv, Nature family, and PLOS',
-}
-
 const STORE = 'ariadne:weave:v15' // bump when the cached corpus shape or harvest logic changes
 
 // IndexedDB: localStorage's ~5MB quota couldn't hold three uncapped corpora,
@@ -71,22 +63,20 @@ function saveStore() {
 }
 
 let seeds: Work[] = []
-// one control: each ask bundles a harvest direction, a weighting, and a sort
-type Ask = 'canon' | 'groundwork' | 'since' | 'now'
-const ASKS: Record<Ask, { mode: WeaveMode; preset: keyof typeof PRESETS; sort: 'score' | 'year' }> = {
-  canon: { mode: 'both', preset: 'canon', sort: 'score' },
-  groundwork: { mode: 'roots', preset: 'loadbearing', sort: 'score' },
-  since: { mode: 'shoots', preset: 'catchup', sort: 'score' },
-  now: { mode: 'shoots', preset: 'catchup', sort: 'year' },
+// one control: each ask bundles a harvest direction and a weighting
+type Ask = 'canon' | 'groundwork' | 'since'
+const ASKS: Record<Ask, { mode: WeaveMode; preset: keyof typeof PRESETS }> = {
+  canon: { mode: 'both', preset: 'canon' },
+  groundwork: { mode: 'roots', preset: 'loadbearing' },
+  since: { mode: 'shoots', preset: 'catchup' },
 }
 const ASK_DESCS: Record<Ask, string> = {
   canon: 'the core reading list — the most influential papers around your seeds, ancestors and descendants together',
   groundwork: 'what your seeds are built on — their references, and the references of those',
-  since: 'what grew from your seeds — downstream work, ranked by influence and momentum',
-  now: 'the newest work downstream of your seeds — sorted by date, not influence',
+  since: 'what grew from your seeds — downstream work, by influence or newest first',
 }
 let ask: Ask = 'canon'
-let oldestFirst = false // groundwork's order toggle: chronological ancestry
+let byTime = false // order toggle: groundwork reads oldest-first, since newest-first
 let weaveMode: WeaveMode = 'both'
 let corpora: Partial<Record<WeaveMode, Corpus>> = {} // one seed set, up to three instruments
 let bridgesOnly = false
@@ -160,7 +150,6 @@ document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
   b.onclick = () => {
     const m = b.dataset.m as ViewMode | 'gallery'
     document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('on', x === b))
-    $('hint').textContent = HINTS[m]
     $('gallery').hidden = m !== 'gallery'
     $('stage').classList.toggle('gallery', m === 'gallery')
     // build the wall on first open: lazy images never load while the container is hidden
@@ -233,6 +222,7 @@ function keyRow(slot: HTMLElement, placeholder: string, get: () => string, set: 
     } else {
       const input = el('input')
       input.type = 'password'
+      input.autocomplete = 'new-password' // else the password manager refills a forgotten key
       input.placeholder = placeholder
       input.onchange = () => {
         set(input.value.trim())
@@ -454,19 +444,21 @@ function syncAskUI() {
   document
     .querySelectorAll<HTMLButtonElement>('#preset button[data-a]')
     .forEach((x) => x.classList.toggle('on', x.dataset.a === ask))
-  $('order-line').hidden = ask !== 'groundwork'
-  $('oldest').classList.toggle('on', oldestFirst)
-  $('order-score').classList.toggle('on', !oldestFirst)
+  $('order-line').hidden = ask === 'canon'
+  const timeBtn = $<HTMLButtonElement>('order-time')
+  timeBtn.textContent = ask === 'groundwork' ? 'oldest first' : 'newest first'
+  timeBtn.classList.toggle('on', byTime)
+  $('order-score').classList.toggle('on', !byTime)
 }
 
-$('ask-legend').append(
+document.querySelector('#ask-legend .rows')!.append(
   ...(Object.entries(ASK_DESCS) as [Ask, string][]).flatMap(([a, d]) => [el('b', '', a), el('span', '', d)]),
 )
 
 document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((b) => {
   b.onclick = () => {
     ask = b.dataset.a as Ask
-    if (ask !== 'groundwork') oldestFirst = false
+    byTime = false
     const wanted = ASKS[ask].mode
     syncAskUI()
     if (wanted !== weaveMode) {
@@ -499,13 +491,13 @@ document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((
   }
 })
 
-const setOrder = (oldest: boolean) => {
-  oldestFirst = oldest
+const setOrder = (time: boolean) => {
+  byTime = time
   syncAskUI()
   computeOrder()
   refreshViews()
 }
-$<HTMLButtonElement>('oldest').onclick = () => setOrder(true)
+$<HTMLButtonElement>('order-time').onclick = () => setOrder(true)
 $<HTMLButtonElement>('order-score').onclick = () => setOrder(false)
 
 // --- weave ---
@@ -542,12 +534,11 @@ function present() {
 
 function computeOrder() {
   if (!corpus) return
-  const byYear = ASKS[ask].sort === 'year' || oldestFirst
-  const key = byYear
-    ? (i: number) => corpus!.works[i].year || (oldestFirst ? 9999 : 0)
+  const key = byTime
+    ? (i: number) => corpus!.works[i].year || (ask === 'groundwork' ? 9999 : 0) // yearless sink to the end
     : (i: number) => metrics[i].score
   order = corpus.works.map((_, i) => i).sort((a, b) => key(b) - key(a))
-  if (oldestFirst) order.reverse() // ancestry reads oldest-first: the story in order
+  if (byTime && ask === 'groundwork') order.reverse() // ancestry reads oldest-first: the story in order
 }
 
 // rebuild everything that depends on `order` or per-paper flags
@@ -1193,7 +1184,6 @@ $('copy-link').onclick = async (e) => {
 }
 
 // what an export walks: the current view, or one section per woven direction
-// ('now' shares since's corpus — same papers, so no fourth section)
 function exportSections(all: boolean) {
   if (!all) return corpus ? [{ label: '', c: corpus, ms: metrics, ord: order }] : []
   const out: { label: string; c: Corpus; ms: Metrics[]; ord: number[] }[] = []
@@ -1302,7 +1292,7 @@ exportMenu.querySelectorAll<HTMLButtonElement>('button[data-fmt]').forEach((b) =
     if (saved?.corpora) {
       seeds = saved.seeds
       corpora = saved.corpora
-      ask = saved.ask ?? 'canon'
+      ask = saved.ask === 'now' ? 'since' : (saved.ask ?? 'canon') // 'now' folded into since
       weaveMode = ASKS[ask].mode
       corpus = corpora[weaveMode] ?? null
       flags = saved.flags ?? {}
@@ -1317,9 +1307,7 @@ exportMenu.querySelectorAll<HTMLButtonElement>('button[data-fmt]').forEach((b) =
 
   // a shared link's seeds win over whatever this browser had woven before
   const linked = location.hash.match(/^#s=([\w,]+)/)?.[1]?.split(',').filter(Boolean) ?? []
-  const linkedAsk = location.hash.match(/[#&]a=(canon|groundwork|since|now)/)?.[1] as
-    | Ask
-    | undefined
+  const linkedAsk = location.hash.match(/[#&]a=(canon|groundwork|since)/)?.[1] as Ask | undefined
   if (linkedAsk && linkedAsk !== ask) {
     ask = linkedAsk
     weaveMode = ASKS[ask].mode

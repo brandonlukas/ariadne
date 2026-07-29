@@ -18,6 +18,10 @@
     p.ex .who { color: var(--thread); }
     .aside { border-left: 2px solid var(--thread); padding: 2px 0 2px 16px; margin: 18px 0;
       color: var(--gray); font-size: 13px; }
+    figure { margin: 22px 0; }
+    figure img { width: 100%; display: block; border: 1px solid var(--hairline);
+      border-radius: 10px; }
+    figcaption { margin-top: 8px; font-size: 12px; color: var(--faint); }
   </style>
 </head>
 <body>
@@ -37,6 +41,11 @@
     <b>went next</b>, and what's happening <b>right now</b>. A single ranking can't be all
     four at once — most tools pretend otherwise, and hand you whatever "related papers" means
     that day. Ariadne makes each question its own, inspectable answer.</p>
+
+    <figure><img src="shots/weave.jpg" alt="The woven constellation: two seed papers in red, each at the heart of its own lobe of the literature, with the ranked reading list alongside" />
+      <figcaption>The example weave, woven. Restormer anchors the upper lobe, the OCT paper
+      the lower; every dot is a paper, sized by influence, shaded by year — and the ranked
+      list on the left is the same corpus as a reading order.</figcaption></figure>
 
     <h2>what a weave gathers</h2>
     <p>Paste your papers as seeds and weave. For each seed, ariadne pulls <b>every paper it
@@ -66,22 +75,26 @@
     read first. Read the top ten or walk all four hundred; the corpus doesn't presume to
     know where you'll stop.</p>
     <p class="ex"><span class="who">the rarest papers</span> — exactly three papers in the
-    example weave (401 papers, ~4,000 edges) directly touch both seeds: U-Net, DnCNN, and
+    example weave (~400 papers, ~4,000 edges) directly touch both seeds: U-Net, DnCNN, and
     StruNet, a 24-citation 2023 transformer for medical-image denoising that is arguably the
     single most relevant paper in the corpus. They carry a bridges badge, and the ⋈ filter
     isolates them in one click.</p>
+    <figure><img src="shots/bridges.jpg" alt="The bridges filter: the whole constellation ghosted except the two seeds and the three papers that touch both" />
+      <figcaption>The ⋈ bridges filter, live: four hundred papers fade, and the three that
+      touch both seeds remain.</figcaption></figure>
 
     <h2>the weave has a direction</h2>
-    <p>One row of plain questions drives everything — <b>ask: canon · groundwork · since ·
-    now</b> — and each question silently chooses a harvest direction, a weighting, and an
-    order. <b>groundwork</b> weaves backward: every reference, and — counted from data
+    <p>One row of plain questions drives everything — <b>ask: canon · groundwork ·
+    since</b> — and each question silently chooses a harvest direction and a weighting.
+    <b>groundwork</b> weaves backward: every reference, and — counted from data
     already in hand — the references <em>of</em> the references, the canon behind the canon.
     Ancestry is a closed world (a 2022 paper's past is finished), so that weave is durable
     and all recency machinery switches off; it ranks by a personalized PageRank (a reader
     starts at <em>your</em> seeds and forever follows references — where do they keep
-    arriving?), and a <b>story</b> toggle reads it oldest-first. <b>since</b> and <b>now</b>
-    weave forward — citer samples, co-cited peers, the frontier — ranked by momentum or by
-    date. <b>canon</b> weaves both directions into one graph: the only place bridges and the
+    arriving?), and an <b>oldest first</b> toggle reads it as a story, in order.
+    <b>since</b> weaves forward — citer samples, co-cited peers, the frontier — ranked by
+    momentum, or flipped to <b>newest first</b> with the same order toggle.
+    <b>canon</b> weaves both directions into one graph: the only place bridges and the
     two-lobe constellation can exist. Each direction is woven once and cached; the link
     carries the question.</p>
     <p class="ex"><span class="who">roots, measured</span> — for the example seeds, roots
@@ -93,6 +106,11 @@
     <h2>four scores, in the open</h2>
     <p>Every paper in the weave gets four scores, each visible as a meter when you open it.
     Nothing is hidden behind a similarity number.</p>
+
+    <figure><img src="shots/scores.jpg" alt="A paper opened from the weave: U-Net's panel showing the four score meters, a why-it-matters line, and its citation threads highlighted in the graph" />
+      <figcaption>U-Net, opened from the example weave: the four meters in the panel, a
+      plain-language <em>why it matters</em>, and every one of its threads lit in the
+      constellation.</figcaption></figure>
 
     <div class="score"><div class="name">foundational<small>PageRank</small></div>
       <p>The algorithm that made early Google, run on your corpus's citation graph. Imagine a
@@ -120,7 +138,7 @@
 
     <p>Raw values of these things are wildly skewed — one paper with 90,000 citations would
     compress everyone else to zero — so each score is <em>rank-normalized</em>: what matters
-    is a paper's position among its 200 peers, not its absolute magnitude.</p>
+    is a paper's position among its peers in the weave, not its absolute magnitude.</p>
 
     <h2>one weighting would be a lie</h2>
     <p>Each question blends the four scores differently, and the weights are the point.
@@ -128,15 +146,16 @@
     <b>since</b> leans on momentum and relevance, and applies an <em>era gate</em>: papers
     published at or before your latest seed are discounted, because a 2015 paper cannot be a
     development since 2022 no matter how many citations it still collects — this single rule
-    is what keeps U-Net from topping every list forever. <b>now</b> is honest chronology
-    over the forward weave. And the seeds' own years are marked with red ticks on the year
+    is what keeps U-Net from topping every list forever. Flip since to <b>newest first</b>
+    and you get honest chronology over the same forward weave. And the seeds' own years are
+    marked with red ticks on the year
     histogram, so brushing across them turns canon into a fifth view: <em>the
     contemporaries</em> — the papers your seeds competed with, recovered from their
     bibliographies and their co-citations.</p>
     <p class="ex"><span class="who">the same corpus, three answers</span> — canon's top
     non-seed papers: U-Net (2015), DnCNN (2017), ResNet (2016). Since's: HAT, CDDFuse,
     and the diffusion-based weather-restoration line — entirely 2023 and later, because the
-    era gate holds. Now leads with 2025–2026 work the traction contest would have
+    era gate holds. Newest-first leads with 2025–2026 work the traction contest would have
     discarded. One list pretending to answer all three would be lying about at least two.</p>
 
     <div class="aside">This is the quiet difference from the usual "related papers" box:
@@ -152,7 +171,7 @@
     which model answered.</p>
 
     <h2>and then your afternoon</h2>
-    <p>Skim canon and star what you haven't read. Switch to catch-up for what happened since.
+    <p>Skim canon and star what you haven't read. Switch to since for what happened after.
     Brush the seed ticks for the contemporaries. Click <b>⋈ bridges</b> for the rare papers
     touching all your seeds — often the closest published ancestors of your own project.
     Hide the noise (bibliographic databases have plenty; hidden papers leave every view and
