@@ -7,6 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><path d=%22M50 50 a5 5 0 0 1 5 -5 a10 10 0 0 1 10 10 a15 15 0 0 1 -15 15 a20 20 0 0 1 -20 -20 a25 25 0 0 1 25 -25%22 fill=%22none%22 stroke=%22%23b41f3a%22 stroke-width=%2211%22 stroke-linecap=%22round%22/></svg>" />
   <style>
     :root {
+      color-scheme: light dark;
       --paper: #ffffff;
       --ink: #1b1a17;
       --gray: #6e6c65;
@@ -404,6 +405,25 @@
       #stage.woven #legend { display: none; } /* bottom row belongs to the hint */
       /* 16px floor: iOS zooms the page into any focused input smaller than that */
       #seed-input, #find, #ai input { font-size: 16px; }
+    }
+
+    /* chalk on slate — same warm cast as the paper theme; last so it wins the cascade */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1a1917;
+        --ink: #e8e6e0;
+        --gray: #a09d94;
+        --faint: #6f6c64;
+        --hairline: #2e2d29;
+        --hover: #232220;
+        --sel: #2a2926;
+        --thread: #e04a63;
+        --ok: #4cae7c;
+        --warn: #d99a4a;
+      }
+      #weave:hover:not(:disabled) { background: #e8607a; }
+      #legend .ramp { background: linear-gradient(to right, #5f5c52, #a5a192, #e8e6e0); }
+      #panel .desc { color: #c8c5bc; }
     }
   </style>
 </head>

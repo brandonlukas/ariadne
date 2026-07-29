@@ -1,6 +1,13 @@
 :root {
+  color-scheme: light dark;
   --paper: #ffffff; --ink: #1b1a17; --gray: #6e6c65; --faint: #a6a49c;
   --hairline: #e9e8e4; --hover: #f6f5f2; --thread: #b41f3a; --ok: #2e8b57;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1a1917; --ink: #e8e6e0; --gray: #a09d94; --faint: #6f6c64;
+    --hairline: #2e2d29; --hover: #232220; --thread: #e04a63; --ok: #4cae7c;
+  }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink);

@@ -1,7 +1,7 @@
 import { autocompleteWorks, buildCorpus, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
 import { getAiOn, getKey, getModel, inferIntent, MODELS, setAiOn, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
-import { createRenderer, THREAD, type GraphNode, type ViewMode } from './render.ts'
+import { createRenderer, readTheme, THREAD, type GraphNode, type ViewMode } from './render.ts'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -21,8 +21,11 @@ const rankedEl = $<HTMLOListElement>('ranked')
 const panelEl = $('panel')
 const panelBody = $('panel-body')
 
-// ink ramp on white — older papers fade, newer ones darken; seeds carry the thread
-const INK_RAMP = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3934', '#1c1b18']
+// ink ramp — older papers fade, newer ones gain ink; seeds carry the thread.
+// dark mode inverts it: ink is light there, so newest = brightest
+const RAMP_LIGHT = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3934', '#1c1b18']
+const RAMP_DARK = ['#5f5c52', '#716d61', '#837f71', '#969282', '#aaa697', '#c9c5b6', '#e8e6e0']
+const darkMq = matchMedia('(prefers-color-scheme: dark)')
 
 const HINTS: Record<ViewMode | 'gallery', string> = {
   constellation: `drag to pan · ${matchMedia('(pointer: coarse)').matches ? 'pinch' : 'scroll'} to zoom · touch a paper to find its thread`,
@@ -800,9 +803,16 @@ weaveBtn.onclick = async () => {
 // --- graph ---
 
 function yearColor(year: number, min: number, max: number): string {
+  const ramp = darkMq.matches ? RAMP_DARK : RAMP_LIGHT
   const t = max > min ? (year - min) / (max - min) : 0.5
-  return INK_RAMP[Math.min(INK_RAMP.length - 1, Math.floor(t * INK_RAMP.length))]
+  return ramp[Math.min(ramp.length - 1, Math.floor(t * ramp.length))]
 }
+
+darkMq.addEventListener('change', () => {
+  readTheme()
+  renderer.recolor((n) => (n.isSeed ? THREAD : yearColor(n.year, yearSpan[0], yearSpan[1])))
+  renderYears() // year-brush bars bake ramp colors into inline styles
+})
 
 function renderGraph() {
   if (!corpus) return

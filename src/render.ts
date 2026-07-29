@@ -24,10 +24,25 @@ export interface GraphNode extends SimulationNodeDatum {
 
 type GraphLink = SimulationLinkDatum<GraphNode>
 
-const PAPER = '#ffffff'
-// single source of truth is --thread in index.html
-export const THREAD =
-  getComputedStyle(document.documentElement).getPropertyValue('--thread').trim() || '#b41f3a'
+// canvas can't see CSS vars — mirror them; readTheme() re-reads on a scheme flip
+export let THREAD = '#b41f3a'
+let PAPER = '#ffffff'
+let INK = '#1b1a17'
+let GRAY = '#6e6c65'
+let FAINT = '#a6a49c'
+let inkRGB = '27,26,23'
+export function readTheme() {
+  const s = getComputedStyle(document.documentElement)
+  const v = (name: string, fb: string) => s.getPropertyValue(name).trim() || fb
+  PAPER = v('--paper', PAPER)
+  THREAD = v('--thread', THREAD)
+  INK = v('--ink', INK)
+  GRAY = v('--gray', GRAY)
+  FAINT = v('--faint', FAINT)
+  inkRGB = [1, 3, 5].map((i) => parseInt(INK.slice(i, i + 2), 16)).join(',')
+}
+readTheme()
+const inkA = (a: number) => `rgba(${inkRGB},${a})`
 const SR = 400 // sphere radius in world units
 const TW = 1200 // timeline width in world units
 const GA = 2.399963229728653 // golden angle
@@ -233,9 +248,9 @@ export function createRenderer(
 
     if (mode === 'timeline') {
       // year gridlines and labels in world space; font counter-scaled to stay 10px
-      ctx.strokeStyle = 'rgba(27,26,23,0.06)'
+      ctx.strokeStyle = inkA(0.06)
       ctx.lineWidth = 1 / view.k
-      ctx.fillStyle = '#a6a49c'
+      ctx.fillStyle = FAINT
       ctx.font = `${10 / view.k}px -apple-system, "Helvetica Neue", sans-serif`
       ctx.textAlign = 'center'
       const [minY, maxY] = timeSpan
@@ -252,7 +267,7 @@ export function createRenderer(
     }
 
     if (mode === 'circle') {
-      ctx.strokeStyle = 'rgba(27,26,23,0.07)'
+      ctx.strokeStyle = inkA(0.07)
       ctx.lineWidth = 1 / view.k
       ringR.forEach((R, d) => {
         if (!R) return
@@ -269,7 +284,7 @@ export function createRenderer(
     for (const [s, t] of edgeIdx) {
       const lit = active != null && (s === active || t === active)
       if (mode === 'sphere' && !lit) continue
-      ctx.strokeStyle = lit ? THREAD + 'cc' : 'rgba(27, 26, 23, 0.06)'
+      ctx.strokeStyle = lit ? THREAD + 'cc' : inkA(0.06)
       ctx.lineWidth = (lit ? 1.5 : 1) / view.k
       ctx.globalAlpha = Math.min(da[s], da[t]) * (ghosted(s) || ghosted(t) ? 0.15 : 1)
       ctx.beginPath()
@@ -316,7 +331,7 @@ export function createRenderer(
       ctx.strokeStyle = PAPER
       ctx.lineWidth = 3
       ctx.strokeText(nodes[i].label, dx[i], ly)
-      ctx.fillStyle = i === active || i === selected ? '#1b1a17' : '#6e6c65'
+      ctx.fillStyle = i === active || i === selected ? INK : GRAY
       ctx.fillText(nodes[i].label, dx[i], ly)
       ctx.globalAlpha = 1
     }
@@ -517,6 +532,9 @@ export function createRenderer(
           n.labeled = s.labeled
         }
       }
+    },
+    recolor(color: (n: GraphNode) => string) {
+      for (const n of nodes) n.color = color(n)
     },
     highlight(id: string | null) {
       external = id ? (byId.get(id) ?? null) : null
