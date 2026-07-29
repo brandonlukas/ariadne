@@ -76,7 +76,14 @@ function getJson(path: string): Promise<any> {
 
 // OpenAlex passes publisher JATS markup through in titles/abstracts; strip only the
 // known tag set — a blanket <…> strip would eat literal "x<y and z>w" in abstracts
-const deTag = (s: string) => s.replace(/<\/?(scp|i|b|em|strong|sub|sup|sc|italic|bold)\b[^>]*>/gi, '')
+// any tag, not a named list — publishers ship JATS Ariadne has never seen
+// (<tt>, <mml:math>, <inline-formula>), and an allowlist leaks every new one.
+// Requires a letter after `<` so "a < b" in a title survives.
+export const deTag = (s: string) =>
+  s
+    .replace(/<\/?[a-z][a-z0-9:-]*\b[^>]*>/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 function deInvert(inv: Record<string, number[]> | null): string | null {
   if (!inv) return null
