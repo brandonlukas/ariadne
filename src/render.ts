@@ -441,6 +441,14 @@ export function createRenderer(
     }
   })
 
+  canvas.addEventListener('pointerleave', () => {
+    if (hovered != null) {
+      hovered = null
+      canvas.style.cursor = 'default'
+      cb.onHover(null)
+    }
+  })
+
   canvas.addEventListener('pointercancel', (e) => {
     pinch.delete(e.pointerId)
     dropDrag()
