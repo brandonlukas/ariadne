@@ -87,6 +87,8 @@ export function createRenderer(
     y: (py - h / 2 - view.y) / view.k,
   })
 
+  const hitSlop = matchMedia('(pointer: coarse)').matches ? 20 : 9
+
   function findNode(px: number, py: number): number | null {
     const p = toWorld(px, py)
     let best: number | null = null
@@ -94,7 +96,7 @@ export function createRenderer(
     for (let i = 0; i < nodes.length; i++) {
       if (da[i] < 0.5 || ghosted(i)) continue
       const d = Math.hypot(dx[i] - p.x, dy[i] - p.y)
-      if (d < Math.max(dr[i] + 2, 9 / view.k) && d < bestD) {
+      if (d < Math.max(dr[i] + 2, hitSlop / view.k) && d < bestD) {
         best = i
         bestD = d
       }
@@ -338,9 +340,31 @@ export function createRenderer(
   let panning = false
   let moved = false
   let last = { x: 0, y: 0 }
+  const pinch = new Map<number, { x: number; y: number }>() // active touch points
+  let pinchDist = 0
+
+  const dropDrag = () => {
+    if (dragging != null) {
+      nodes[dragging].fx = nodes[dragging].fy = null
+      sim?.alphaTarget(0)
+      dragging = null
+    }
+  }
 
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId)
+    if (e.pointerType === 'touch') {
+      pinch.set(e.pointerId, { x: e.offsetX, y: e.offsetY })
+      if (pinch.size === 2) {
+        // second finger: whatever the first was doing becomes a pinch
+        dropDrag()
+        panning = false
+        const [a, b] = [...pinch.values()]
+        pinchDist = Math.hypot(a.x - b.x, a.y - b.y)
+        moved = true
+        return
+      }
+    }
     moved = false
     last = { x: e.offsetX, y: e.offsetY }
     const n = mode === 'constellation' ? findNode(e.offsetX, e.offsetY) : null
@@ -355,6 +379,23 @@ export function createRenderer(
   })
 
   canvas.addEventListener('pointermove', (e) => {
+    if (pinch.has(e.pointerId)) pinch.set(e.pointerId, { x: e.offsetX, y: e.offsetY })
+    if (pinch.size === 2) {
+      // zoom about the midpoint, same math as the wheel handler
+      const [a, b] = [...pinch.values()]
+      const d = Math.hypot(a.x - b.x, a.y - b.y)
+      const mx = (a.x + b.x) / 2
+      const my = (a.y + b.y) / 2
+      if (pinchDist > 0) {
+        const k2 = Math.min(6, Math.max(0.15, view.k * (d / pinchDist)))
+        const p = toWorld(mx, my)
+        view.x = target.x = mx - w / 2 - p.x * k2
+        view.y = target.y = my - h / 2 - p.y * k2
+        view.k = target.k = k2
+      }
+      pinchDist = d
+      return
+    }
     if (dragging != null) {
       const p = toWorld(e.offsetX, e.offsetY)
       nodes[dragging].fx = p.x
@@ -385,7 +426,14 @@ export function createRenderer(
     }
   })
 
+  canvas.addEventListener('pointercancel', (e) => {
+    pinch.delete(e.pointerId)
+    dropDrag()
+    panning = false
+  })
+
   canvas.addEventListener('pointerup', (e) => {
+    pinch.delete(e.pointerId)
     if (dragging != null) {
       const n = dragging
       dragging = null

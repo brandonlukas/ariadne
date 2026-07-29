@@ -25,7 +25,7 @@ const panelBody = $('panel-body')
 const INK_RAMP = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3934', '#1c1b18']
 
 const HINTS: Record<ViewMode | 'gallery', string> = {
-  constellation: 'drag to pan · scroll to zoom · touch a paper to find its thread',
+  constellation: `drag to pan · ${matchMedia('(pointer: coarse)').matches ? 'pinch' : 'scroll'} to zoom · touch a paper to find its thread`,
   circle: 'rings — steps outward from your seeds · touch a paper to find its thread',
   sphere: 'drag to rotate · touch a paper to find its thread',
   timeline: 'time flows left to right — citations point into the past · touch a paper to find its thread',
@@ -126,6 +126,9 @@ $('back').onclick = () => {
   renderer.select(null)
   for (const li of rankedEl.children) li.classList.remove('active')
 }
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && panelEl.classList.contains('open')) $('back').click()
+})
 
 document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
   b.onclick = () => {
@@ -260,6 +263,7 @@ function renderChips() {
     }),
   )
   weaveBtn.disabled = seeds.length === 0 || (seedKey() === wovenKey && !!corpora[weaveMode])
+  $('seed-sum').textContent = seeds.length ? `seeds · ${seeds.length}` : 'seeds'
   if (seeds.length === 0) idbSet(STORE, null).catch(() => {})
 }
 
@@ -409,7 +413,6 @@ function syncAskUI() {
   document
     .querySelectorAll<HTMLButtonElement>('#preset button[data-a]')
     .forEach((x) => x.classList.toggle('on', x.dataset.a === ask))
-  $('ask-desc').textContent = ASK_DESCS[ask]
   $('order-line').hidden = ask !== 'groundwork'
   $('oldest').classList.toggle('on', oldestFirst)
   $('order-score').classList.toggle('on', !oldestFirst)
@@ -418,11 +421,6 @@ function syncAskUI() {
 $('ask-legend').append(
   ...(Object.entries(ASK_DESCS) as [Ask, string][]).flatMap(([a, d]) => [el('b', '', a), el('span', '', d)]),
 )
-$('ask-help').onclick = () => {
-  const legend = $('ask-legend')
-  legend.hidden = !legend.hidden
-  $('ask-help').classList.toggle('on', !legend.hidden)
-}
 
 document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((b) => {
   b.onclick = () => {
@@ -677,8 +675,15 @@ function renderFacts() {
 const lensesEl = $('lenses')
 let tab: 'papers' | 'venues' | 'authors' = 'papers'
 
+let lensesKey = '' // which (tab, corpus) the current rows were built from
+
 function renderLenses() {
   if (!corpus || tab === 'papers') return
+  // the rows are pure functions of the works list — skip the ~thousands-of-nodes
+  // rebuild when it hasn't changed, just re-sync the lit state
+  const key = `${tab}:${weaveMode}:${wovenKey}`
+  if (key === lensesKey) return applyFilter()
+  lensesKey = key
   const kind = tab === 'venues' ? ('venue' as const) : ('author' as const)
   const counts = new Map<string, number>()
   for (const w of corpus.works)
@@ -715,9 +720,11 @@ function setTab(t: typeof tab) {
   lensesEl.hidden = t === 'papers'
   renderLenses()
 }
-document.querySelectorAll<HTMLElement>('#tabs button').forEach((b) => {
+document.querySelectorAll<HTMLElement>('#tabs button[data-t]').forEach((b) => {
   b.onclick = () => setTab(b.dataset.t as typeof tab)
 })
+
+$('list-max').onclick = () => $('sidebar').classList.toggle('folded')
 
 weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
@@ -735,6 +742,7 @@ weaveBtn.onclick = async () => {
     writeHash()
     saveStore()
     present()
+    $('sidebar').classList.add('folded') // the weave is up — give the sidebar to the list
     status('')
     maybeInferIntent()
   } catch (err) {
@@ -1247,7 +1255,10 @@ exportMenu.querySelectorAll<HTMLButtonElement>('button[data-fmt]').forEach((b) =
       aiWhy = saved.aiWhy ?? {}
       wovenKey = seedKey()
       renderChips()
-      if (corpus) present()
+      if (corpus) {
+        present()
+        $('sidebar').classList.add('folded')
+      }
       maybeInferIntent() // a key may be set while the last session's intent isn't
     }
   } catch {} // corrupt store — start fresh

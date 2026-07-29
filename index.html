@@ -23,7 +23,7 @@
       font: 13px/1.5 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    #frame { display: flex; flex-direction: column; height: 100vh; }
+    #frame { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 
     nav {
       display: flex; align-items: baseline; gap: 14px;
@@ -45,7 +45,17 @@
        the ranked list keeps a floor, and the column scrolls if even that fails */
     #sidebar { width: 316px; flex-shrink: 0; display: flex; flex-direction: column;
       border-right: 1px solid var(--hairline); overflow-y: auto; }
-    #seed-form { display: flex; gap: 8px; padding: 18px 18px 0 22px; }
+    /* #sidebar.folded: the seed-entry block and setup rows give the sidebar to the
+       ranked list; #list-max drives the fold. #status stays visible — reweave
+       errors must surface even while folded */
+    #seed-box { flex-shrink: 0; }
+    #seed-sum { padding: 12px 18px 0 22px; font-size: 11px; color: var(--faint);
+      text-transform: uppercase; letter-spacing: 0.08em; }
+    #sidebar.folded #seed-box, #sidebar.folded #ai, #sidebar.folded #intent-line,
+    #sidebar.folded #facts { display: none; }
+    #sidebar.folded #tabs { padding-top: 12px; } /* breathing room as the new first row */
+    #weave { display: block; width: calc(100% - 40px); }
+    #seed-form { display: flex; gap: 8px; padding: 12px 18px 0 22px; }
     #seed-input { flex: 1; background: var(--paper); border: 1px solid var(--hairline);
       border-radius: 999px; padding: 8px 14px; color: var(--ink); font: inherit; outline: none; }
     #seed-input::placeholder { color: var(--faint); }
@@ -85,6 +95,7 @@
     #weave:hover:not(:disabled) { background: #c72a48; }
     #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
+    #status:empty { display: none; }
     #status.error { color: var(--thread); }
     #ai { padding: 0 18px 6px 22px; font-size: 11px; }
     #ai > button { background: none; border: none; padding: 0; font-size: 11px; width: 100%;
@@ -120,11 +131,22 @@
     #intent-line[hidden] { display: none; }
     #facts { padding: 0 18px 10px 22px; font-size: 11px; color: var(--gray); }
     #facts b { font-weight: 400; color: var(--faint); }
-    #tabs { display: flex; gap: 14px; padding: 0 18px 8px 22px; font-size: 12px; }
+    #tabs { display: flex; gap: 14px; align-items: center; padding: 0 18px 8px 22px;
+      font-size: 12px; }
     #tabs[hidden] { display: none; }
     #tabs button { background: none; border: none; padding: 0; color: var(--faint); }
     #tabs button.on { color: var(--ink); }
     #tabs button:hover { color: var(--gray); }
+    /* maximize-the-list: corner brackets point out while the seed box is open
+       (the list can still grow), in once it's folded (the seeds can come back) */
+    #tabs #list-max { margin-left: auto; width: 24px; height: 24px; padding: 5px;
+      border: 1px solid var(--hairline); border-radius: 999px; color: var(--gray);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    #tabs #list-max:hover { border-color: var(--faint); color: var(--ink); }
+    #tabs #list-max svg { width: 100%; height: 100%; stroke: currentColor;
+      stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    #sidebar:not(.folded) #list-max .in { display: none; }
+    #sidebar.folded #list-max .out { display: none; }
     #lenses { flex: 1; overflow-y: auto; border-top: 1px solid var(--hairline);
       padding: 8px 18px 10px 22px; font-size: 11px; color: var(--gray); min-height: 160px; }
     #lenses .row { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; cursor: pointer; }
@@ -157,14 +179,19 @@
       padding: 2px 10px; font-size: 11px; color: var(--gray); }
     #preset .seg button:hover { color: var(--ink); }
     #preset .seg button.on { background: var(--sel); color: var(--ink); }
-    #ask-desc { margin-top: 6px; padding-left: 4px; color: var(--faint); line-height: 1.5; }
     #ask-help { background: none; border: 1px solid var(--hairline); color: var(--faint);
       border-radius: 50%; width: 18px; height: 18px; padding: 0; margin-left: 6px;
       font-size: 10px; vertical-align: middle; cursor: pointer; }
-    #ask-help:hover, #ask-help.on { color: var(--thread); border-color: var(--thread); }
-    #ask-legend { margin-top: 8px; border-top: 1px solid var(--hairline); padding: 8px 0 2px 4px;
-      display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; color: var(--gray); }
-    #ask-legend[hidden] { display: none; }
+    #ask-help:hover { color: var(--thread); border-color: var(--thread); }
+    /* the asks, explained in a floating callout — light-dismiss via the popover API */
+    #ask-legend:popover-open { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
+    #ask-legend { margin: auto; width: min(340px, calc(100vw - 48px)); padding: 16px 18px 18px;
+      border: 1px solid var(--hairline); border-radius: 10px; background: var(--paper);
+      color: var(--gray); font-size: 12px; line-height: 1.55;
+      box-shadow: 0 12px 40px rgba(27, 26, 23, 0.14); }
+    #ask-legend::backdrop { background: rgba(27, 26, 23, 0.18); }
+    #ask-legend .lead { grid-column: 1 / -1; color: var(--faint); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 4px; }
     #ask-legend b { font-weight: 600; color: var(--ink); }
     #order-line { margin-top: 6px; padding-left: 4px; color: var(--faint);
       display: flex; gap: 10px; align-items: baseline; }
@@ -198,7 +225,8 @@
       font-variant-numeric: tabular-nums; }
 
     #stage { flex: 1; position: relative; overflow: hidden; min-width: 0; }
-    #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+      touch-action: none; }
 
     #modes { position: absolute; top: 16px; left: 20px; display: none; gap: 16px; }
     #modes button { background: none; border: none; padding: 0; color: var(--faint);
@@ -325,6 +353,20 @@
     #panel .conn.seed:hover .t { text-decoration: underline; }
     button:focus-visible, a:focus-visible, li:focus-visible, input:focus-visible {
       outline: 2px solid var(--thread); outline-offset: 2px; }
+
+    /* phones: stack the panes — seeds on top, graph below, panel over everything */
+    @media (max-width: 720px) {
+      nav .tagline { display: none; }
+      #main { flex-direction: column; }
+      #sidebar { width: auto; max-height: 45dvh; border-right: none;
+        border-bottom: 1px solid var(--hairline); }
+      #stage { flex: 1; min-height: 0; }
+      #panel { width: 100%; }
+      #toolbar { top: 46px; } /* second row — modes own the first */
+      #stage.woven #legend { display: none; } /* bottom row belongs to the hint */
+      /* 16px floor: iOS zooms the page into any focused input smaller than that */
+      #seed-input, #find, #ai input { font-size: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -341,13 +383,16 @@
     </nav>
     <div id="main">
       <aside id="sidebar">
-        <form id="seed-form">
-          <input id="seed-input" placeholder="DOI or paper title…" />
-          <button id="add-seed">add</button>
-        </form>
-        <ul id="picker"></ul>
-        <ul id="seed-chips"></ul>
-        <button id="weave" disabled>weave the graph</button>
+        <div id="seed-box">
+          <div id="seed-sum">seeds</div>
+          <form id="seed-form">
+            <input id="seed-input" placeholder="DOI or paper title…" />
+            <button id="add-seed">add</button>
+          </form>
+          <ul id="picker"></ul>
+          <ul id="seed-chips"></ul>
+          <button id="weave" disabled>weave the graph</button>
+        </div>
         <div id="status"></div>
         <div id="ai">
           <button id="ai-toggle"><span class="dot"></span><span id="ai-status">ai off</span><span id="alex-status"></span></button>
@@ -370,6 +415,14 @@
           <button data-t="papers" class="on">papers</button>
           <button data-t="venues">venues</button>
           <button data-t="authors">authors</button>
+          <button id="list-max" title="expand or restore the list" aria-label="toggle the seed panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <g class="out"><polyline points="15 3 21 3 21 9" /><line x1="21" y1="3" x2="14" y2="10" />
+                <polyline points="9 21 3 21 3 15" /><line x1="3" y1="21" x2="10" y2="14" /></g>
+              <g class="in"><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" />
+                <polyline points="4 14 10 14 10 20" /><line x1="3" y1="21" x2="10" y2="14" /></g>
+            </svg>
+          </button>
         </div>
         <div id="list-tools" hidden>
           <input id="find" placeholder="filter…" />
@@ -381,9 +434,8 @@
             <button data-a="groundwork">groundwork</button>
             <button data-a="since">since</button>
             <button data-a="now">now</button>
-          </div><button id="ask-help" aria-label="explain the asks">?</button>
-          <div id="ask-legend" hidden></div>
-          <div id="ask-desc"></div>
+          </div><button id="ask-help" popovertarget="ask-legend" aria-label="explain the asks">?</button>
+          <div id="ask-legend" popover><span class="lead">the asks</span></div>
           <div id="order-line" hidden>
             <span>order ·</span>
             <button id="order-score" class="on" title="ranked by load-bearing score">influence</button>
