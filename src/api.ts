@@ -74,11 +74,15 @@ function getJson(path: string): Promise<any> {
   return p
 }
 
+// OpenAlex passes publisher JATS markup through in titles/abstracts; strip only the
+// known tag set — a blanket <…> strip would eat literal "x<y and z>w" in abstracts
+const deTag = (s: string) => s.replace(/<\/?(scp|i|b|em|strong|sub|sup|sc|italic|bold)\b[^>]*>/gi, '')
+
 function deInvert(inv: Record<string, number[]> | null): string | null {
   if (!inv) return null
   const words: string[] = []
   for (const [w, positions] of Object.entries(inv)) for (const p of positions) words[p] = w
-  return words.join(' ')
+  return deTag(words.join(' '))
 }
 
 function findArxivId(j: any): string | null {
@@ -99,7 +103,7 @@ function parseWork(j: any): Work {
   const arxivId = findArxivId(j)
   const w: Work = {
     id: short(j.id),
-    title: j.display_name ?? '(untitled)',
+    title: deTag(j.display_name ?? '(untitled)'),
     year: j.publication_year ?? 0,
     citedBy: j.cited_by_count ?? 0,
     // OpenAlex's own `type` field mislabels thousands of journal articles as
@@ -177,7 +181,7 @@ export async function autocompleteWorks(q: string): Promise<Suggestion[]> {
   const j = await getJson(`/autocomplete/works?q=${encodeURIComponent(q)}`)
   return (j.results ?? []).map((r: any) => ({
     id: short(r.id),
-    title: r.display_name ?? '(untitled)',
+    title: deTag(r.display_name ?? '(untitled)'),
     hint: r.hint ?? null,
   }))
 }
