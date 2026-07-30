@@ -100,6 +100,9 @@
       border-radius: 8px; padding: 6px 10px; font-size: 12px; }
     #seed-chips li::before { content: ''; width: 7px; height: 7px; border-radius: 50%;
       background: var(--thread); flex-shrink: 0; }
+    /* hollow dot: in the seed list, not in the current weave */
+    #seed-chips li.unwoven::before { background: transparent;
+      box-shadow: inset 0 0 0 1.5px var(--thread); }
     #seed-chips .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       background: none; border: none; padding: 0; font: inherit; color: inherit; text-align: left;
       cursor: pointer; }
@@ -111,6 +114,12 @@
       border: none; border-radius: 999px; letter-spacing: 0.01em; }
     #weave:hover:not(:disabled) { background: #c72a48; }
     #weave:disabled { background: var(--hover); color: var(--faint); cursor: default; }
+    /* one soft pulse when the weave first goes stale — a status, not an alarm */
+    #weave.nudge { animation: nudge 1.1s ease-out 1; }
+    @keyframes nudge {
+      0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--thread) 45%, transparent); }
+      100% { box-shadow: 0 0 0 12px transparent; }
+    }
     #status { padding: 8px 18px 12px 22px; font-size: 11px; color: var(--faint); min-height: 28px; }
     #status:empty { display: none; }
     #status.error { color: var(--thread); }
@@ -132,7 +141,8 @@
       color-mix(in srgb, var(--warn) 18%, transparent); }
     @media (prefers-reduced-motion: reduce) {
       #ai-power.on .dot { animation: none; box-shadow: 0 0 0 3px
-        color-mix(in srgb, var(--ok) 18%, transparent); } }
+        color-mix(in srgb, var(--ok) 18%, transparent); }
+      #weave.nudge { animation: none; } }
     #alex-status { margin-left: auto; color: var(--faint); }
     #ai-settings { background: none; border: none; padding: 3px; width: 22px; height: 22px;
       color: var(--faint); display: flex; flex-shrink: 0; }

@@ -275,9 +275,10 @@ async function maybeInferIntent() {
 // --- seeds ---
 
 function renderChips() {
+  const woven = new Set(wovenKey ? wovenKey.split('|') : [])
   chipsEl.replaceChildren(
     ...seeds.map((s, i) => {
-      const li = el('li')
+      const li = el('li', woven.size && !woven.has(s.id) ? 'unwoven' : '')
       const t = el('button', 't', s.title)
       t.title = 'see the full record'
       t.onclick = () => openSeedDetails(s)
@@ -286,14 +287,23 @@ function renderChips() {
       x.title = 'remove this seed'
       x.onclick = () => {
         seeds.splice(i, 1)
-        if (panelId === s.id) hidePanel()
         renderChips()
+        if (panelId === s.id) openSeedDetails(s) // rebuild so the add-as-seed pill returns
       }
       li.append(t, y, x)
       return li
     }),
   )
   weaveBtn.disabled = seeds.length === 0 || (seedKey() === wovenKey && !!corpora[weaveMode])
+  const fresh = woven.size ? seeds.filter((s) => !woven.has(s.id)).length : 0
+  // stale without new seeds = a removal; say "reweave" but skip the count and pulse
+  const stale = woven.size > 0 && seeds.length > 0 && seedKey() !== wovenKey
+  weaveBtn.textContent = fresh
+    ? `reweave · ${fresh} new seed${fresh > 1 ? 's' : ''}`
+    : stale
+      ? 'reweave'
+      : 'weave the graph'
+  weaveBtn.classList.toggle('nudge', fresh > 0) // only the off→on flip animates: one pulse per streak
   $('seed-sum').textContent = seeds.length ? `seeds · ${seeds.length}` : 'seeds'
   if (seeds.length === 0) idbSet(STORE, null).catch(() => {})
 }
@@ -1177,15 +1187,16 @@ function openDetails(i: number) {
   const hide = el('button', 'pill', flags[w.id] === 'hide' ? 'unhide' : 'hide')
   hide.onclick = () => setFlag('hide')
   pills.append(star, hide)
-  if (!seeds.some((s) => s.id === w.id)) {
-    const grow = el('button', 'pill', 'add as seed + reweave')
-    grow.onclick = () => {
-      seeds.push({ ...w, isSeed: false })
-      renderChips()
-      weaveBtn.click()
-    }
-    pills.append(grow)
+  // a toggle like star/hide: seed status flips in place, reweave stays the user's call
+  const at = seeds.findIndex((s) => s.id === w.id)
+  const grow = el('button', 'pill', at >= 0 ? 'remove seed' : 'add as seed')
+  grow.onclick = () => {
+    if (at >= 0) seeds.splice(at, 1)
+    else seeds.push({ ...w, isSeed: false })
+    renderChips()
+    openDetails(i) // rebuild the panel so the label flips
   }
+  pills.append(grow)
   panelBody.append(pills)
 
   // the paper's neighborhood, so finding a node's connections doesn't require
