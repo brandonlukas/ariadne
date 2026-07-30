@@ -187,6 +187,7 @@
     #lenses { flex: 1; overflow-y: auto; border-top: 1px solid var(--hairline);
       padding: 8px 18px 10px 22px; font-size: 11px; color: var(--gray); min-height: 160px; }
     #lenses .row { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; cursor: pointer; }
+    #lenses .row[hidden] { display: none; }
     #lenses .row .n { width: 140px; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; flex-shrink: 0; }
     #lenses .row:hover .n { color: var(--ink); }

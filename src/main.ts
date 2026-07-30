@@ -676,8 +676,10 @@ function applyFilter() {
   }
   for (const card of document.querySelectorAll<HTMLElement>('#gallery .card'))
     card.classList.toggle('ghost', vis !== null && !vis.has(card.dataset.id!))
-  for (const row of document.querySelectorAll<HTMLElement>('#lenses .row'))
+  for (const row of document.querySelectorAll<HTMLElement>('#lenses .row')) {
     row.classList.toggle('lit', lens !== null && row.dataset.kind === lens.kind && row.dataset.name === lens.name)
+    row.hidden = !!needle && !row.dataset.name!.toLowerCase().includes(needle)
+  }
   updateReadout()
 }
 
