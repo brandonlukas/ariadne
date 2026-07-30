@@ -259,6 +259,8 @@
     #ranked li { display: flex; gap: 12px; padding: 11px 18px 11px 22px;
       border-bottom: 1px solid var(--hairline); cursor: pointer; }
     #ranked li:hover, #ranked li.hover { background: var(--hover); }
+    #ranked li:focus-visible { outline: none; background: var(--hover);
+      box-shadow: inset 2px 0 0 var(--thread); }
     #ranked li.active { background: var(--sel); }
     /* seeds carry the thread — tint each state so hover/select still read */
     #ranked li.seed { background: color-mix(in srgb, var(--thread) 8%, var(--paper)); }

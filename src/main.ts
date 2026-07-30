@@ -921,10 +921,16 @@ function renderList() {
         renderer.focus(w.id)
         openDetails(i)
       }
+      li.onfocus = () => renderer.highlight(w.id)
+      li.onblur = () => renderer.highlight(null)
       li.onkeydown = (e) => {
         if (e.key === 'Enter') {
           renderer.focus(w.id)
           openDetails(i)
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault() // the arrow moves the roving focus, not the scrollbar
+          const next = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling
+          ;(next as HTMLElement | null)?.focus()
         }
       }
       return li
