@@ -1,5 +1,15 @@
 import assert from 'node:assert'
-import { deTag, titleMatch } from './api.ts'
+import { deTag, idLike, titleMatch } from './api.ts'
+
+// PMIDs take the exact-resolve path instead of being text-searched as a title
+assert(idLike('31978945'))
+assert(idLike('PMID: 31978945'))
+assert(idLike('https://pubmed.ncbi.nlm.nih.gov/31978945/'))
+// the other id forms still route around search
+assert(idLike('10.1038/nature14539') && idLike('https://doi.org/10.1038/nature14539'))
+assert(idLike('arXiv:2301.12345') && idLike('2301.12345v2') && idLike('W2100837269'))
+// a year or a title is not an id — these must still fuzzy-search
+assert(!idLike('2019') && !idLike('attention is all you need'))
 
 // exact title, punctuation and case ignored
 assert(titleMatch('Attention Is All You Need', 'Attention is all you need.') === 1)

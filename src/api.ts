@@ -166,14 +166,20 @@ const arxOf = (q: string) =>
   q.match(/^(?:arxiv:)?(\d{4}\.\d{4,5})(?:v\d+)?$/i)?.[1] ??
   q.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5})/i)?.[1]
 
-// DOI, arXiv id/URL, or OpenAlex id — anything resolvable without a fuzzy search
+// a bare 7–8 digit number is unambiguously a PMID — nobody title-searches a number
+const pmidOf = (q: string) =>
+  q.match(/^(?:pmid:\s*)?(\d{7,8})$/i)?.[1] ?? q.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d{7,8})/i)?.[1]
+
+// DOI, arXiv id/URL, PMID, or OpenAlex id — anything resolvable without a fuzzy search
 export const idLike = (q: string) =>
-  !!arxOf(q) || /^10\.\d{4,}\//.test(stripDoi(q.trim())) || /^W\d+$/i.test(q.trim())
+  !!arxOf(q) || !!pmidOf(q.trim()) || /^10\.\d{4,}\//.test(stripDoi(q.trim())) || /^W\d+$/i.test(q.trim())
 
 export async function resolveSeed(input: string): Promise<Work> {
   const q = stripDoi(input.trim())
   const arx = arxOf(q)
+  const pmid = pmidOf(q)
   if (arx) return parseWork(await getJson(`/works/doi:10.48550/arXiv.${arx}?select=${SELECT}`))
+  if (pmid) return parseWork(await getJson(`/works/pmid:${pmid}?select=${SELECT}`))
   if (/^10\.\d{4,}\//.test(q)) return parseWork(await getJson(`/works/doi:${q}?select=${SELECT}`))
   if (/^W\d+$/i.test(q)) return parseWork(await getJson(`/works/${q}?select=${SELECT}`))
   const results = await searchSeeds(q, 1)

@@ -358,7 +358,7 @@ async function addSeed() {
       const results = await searchSeeds(q, 10)
       if (!results.length)
         throw new Error(
-          `No paper found for “${q}” — very recent papers reach OpenAlex on a delay; pasting the DOI or arXiv link often works sooner`,
+          `No paper found for “${q}” — very recent papers reach OpenAlex on a delay; pasting the DOI, PMID, or arXiv link often works sooner`,
         )
       if (results.length === 1) pushSeed(results[0])
       else {
