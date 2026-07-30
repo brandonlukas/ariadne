@@ -144,6 +144,19 @@ $('back').onclick = () => {
 }
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && panelEl.classList.contains('open')) $('back').click()
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+  const t = e.target as HTMLElement
+  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
+  if (rankedEl.hidden) return
+  // arrows walk the ranked list from wherever focus is: the focused row's
+  // sibling, or (re)entry at the selected paper, or the top of the list
+  const dir = e.key === 'ArrowDown' ? ('nextElementSibling' as const) : ('previousElementSibling' as const)
+  const from = t.closest('#ranked li')
+  let next = from ? from[dir] : (rankedEl.querySelector('li.active:not([hidden])') ?? rankedEl.firstElementChild)
+  while (next instanceof HTMLElement && next.hidden) next = next[dir]
+  if (!next) return
+  e.preventDefault() // the arrow moves the roving focus, not the scrollbar
+  ;(next as HTMLElement).focus()
 })
 
 document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) => {
@@ -924,13 +937,10 @@ function renderList() {
       li.onfocus = () => renderer.highlight(w.id)
       li.onblur = () => renderer.highlight(null)
       li.onkeydown = (e) => {
+        // arrows are handled by the global listener — this leaves Enter only
         if (e.key === 'Enter') {
           renderer.focus(w.id)
           openDetails(i)
-        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-          e.preventDefault() // the arrow moves the roving focus, not the scrollbar
-          const next = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling
-          ;(next as HTMLElement | null)?.focus()
         }
       }
       return li
