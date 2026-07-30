@@ -930,18 +930,15 @@ function renderList() {
       li.append(el('span', 'rank', String(rank + 1)), body, el('span', 'sc', metrics[i].score.toFixed(2)))
       li.onmouseenter = () => renderer.highlight(w.id)
       li.onmouseleave = () => renderer.highlight(null)
-      li.onclick = () => {
-        renderer.focus(w.id)
-        openDetails(i)
+      li.onclick = () => openDetails(i)
+      li.onfocus = () => {
+        renderer.highlight(w.id)
+        renderer.panTo(w.id, panelEl.classList.contains('open') ? -192 : 0)
       }
-      li.onfocus = () => renderer.highlight(w.id)
       li.onblur = () => renderer.highlight(null)
       li.onkeydown = (e) => {
         // arrows are handled by the global listener — this leaves Enter only
-        if (e.key === 'Enter') {
-          renderer.focus(w.id)
-          openDetails(i)
-        }
+        if (e.key === 'Enter') openDetails(i)
       }
       return li
     }),
@@ -1159,6 +1156,9 @@ function openDetails(i: number) {
   for (const li of rankedEl.children) li.classList.toggle('active', (li as HTMLElement).dataset.id === w.id)
   rankedEl.querySelector<HTMLElement>(`li[data-id="${w.id}"]`)?.scrollIntoView({ block: 'nearest' })
   renderer.select(w.id)
+  // center left of the panel at the current zoom — same-paper rebuilds
+  // (flag toggles, ai swaps) don't move the camera
+  if (panelId !== w.id) renderer.panTo(w.id, -192)
 
   panelBody.replaceChildren(...paperHead(w))
   if (panelId !== w.id) panelEl.scrollTop = 0 // new paper starts at the top; ai-text swaps don't jump
@@ -1234,10 +1234,7 @@ function openDetails(i: number) {
       row.title = w2.title
       row.onmouseenter = () => renderer.highlight(w2.id)
       row.onmouseleave = () => renderer.highlight(null)
-      row.onclick = () => {
-        renderer.focus(w2.id)
-        openDetails(j)
-      }
+      row.onclick = () => openDetails(j)
       panelBody.append(row)
     }
   }

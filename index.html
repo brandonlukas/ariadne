@@ -372,7 +372,7 @@
     @media (prefers-reduced-motion: reduce) { #panel { transition: none; }
       #sidebar { transition: none; } #ranked { scroll-behavior: auto; } }
     #back { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--hairline);
-      background: var(--paper); color: var(--ink); font-size: 14px;
+      background: var(--paper); color: var(--ink);
       margin-bottom: 18px; display: flex; align-items: center; justify-content: center; }
     #back:hover { border-color: var(--faint); }
     #panel h2 { margin: 0 0 6px; font-size: 21px; line-height: 1.3; font-weight: 500;
@@ -577,7 +577,7 @@
           </details>
         </div>
         <div id="panel">
-          <button id="back" aria-label="close">←</button>
+          <button id="back" aria-label="close"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.2"/></svg></button>
           <div id="panel-body"></div>
         </div>
       </main>

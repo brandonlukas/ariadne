@@ -546,19 +546,21 @@ export function createRenderer(
     },
     highlight(id: string | null) {
       external = id ? (byId.get(id) ?? null) : null
+      // newest signal wins: a hover parked on the canvas must not mask the
+      // keyboard's roving highlight — moving the mouse re-establishes it
+      if (external != null) hovered = null
     },
-    focus(id: string) {
+    // pan the camera to a node at the current zoom, without selecting it.
+    // px shifts the center (e.g. -192 when the detail panel is open)
+    panTo(id: string, px: number) {
       const i = byId.get(id)
       if (i === undefined) return
-      selected = i
       if (mode === 'sphere') {
         const [ux, , uz] = sphereU[i]
         rotTarget = Math.atan2(-ux, uz)
         target.x = target.y = 0
       } else {
-        target.k = Math.max(view.k, 1.1)
-        // center in the area left of the 384px detail panel
-        target.x = -dx[i] * target.k - 192
+        target.x = -dx[i] * target.k + px
         target.y = -dy[i] * target.k
       }
     },
