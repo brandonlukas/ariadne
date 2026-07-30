@@ -49,7 +49,11 @@ const GA = 2.399963229728653 // golden angle
 
 export function createRenderer(
   canvas: HTMLCanvasElement,
-  cb: { onHover(id: string | null): void; onSelect(id: string | null): void },
+  cb: {
+    onHover(id: string | null): void
+    onSelect(id: string | null): void
+    onPeek(id: string): void
+  },
 ) {
   const ctx = canvas.getContext('2d')!
   let nodes: GraphNode[] = []
@@ -79,6 +83,8 @@ export function createRenderer(
   const view = { x: 0, y: 0, k: 1 }
   const target = { x: 0, y: 0, k: 1 }
   let hovered: number | null = null
+  let peeked: number | null = null // alt-clicked: shown in the panel without stealing the selection
+  let armed: number | null = null // alt-hovered: dashed ring only — "this is what you'd peek"
   let selected: number | null = null
   let external: number | null = null
   let visible: Set<string> | null = null // year-brush filter; null = everything
@@ -294,18 +300,20 @@ export function createRenderer(
       ctx.globalAlpha = 1
     }
     for (let i = 0; i < nodes.length; i++) {
-      const dim = active != null && i !== active && !hood!.has(i)
+      const dim = active != null && i !== active && i !== peeked && !hood!.has(i)
       ctx.globalAlpha = da[i] * (dim ? 0.25 : 1) * (ghosted(i) ? 0.12 : 1)
       ctx.beginPath()
       ctx.arc(dx[i], dy[i], dr[i], 0, Math.PI * 2)
       ctx.fillStyle = nodes[i].color
       ctx.fill()
-      if (i === active || i === selected) {
+      if (i === active || i === selected || i === peeked || i === armed) {
         ctx.strokeStyle = THREAD
         ctx.lineWidth = 1.4 / view.k
+        if (i === peeked || i === armed) ctx.setLineDash([4 / view.k, 3 / view.k])
         ctx.beginPath()
         ctx.arc(dx[i], dy[i], dr[i] + 4 / view.k, 0, Math.PI * 2)
         ctx.stroke()
+        ctx.setLineDash([])
       }
       ctx.globalAlpha = 1
     }
@@ -366,6 +374,28 @@ export function createRenderer(
     }
   }
 
+  // while alt is held with a selection, only the selected node and its
+  // neighborhood respond — everything dimmed is inert
+  const altReach = (n: number | null, alt: boolean) =>
+    alt && selected != null && n != null && n !== selected && !adj[selected].has(n) ? null : n
+
+  // a click resolves here: plain click selects; alt-click peeks a neighbor
+  // (panel + dashed ring, selection untouched), alt-click elsewhere drops the peek
+  const tap = (n: number | null, alt: boolean) => {
+    if (alt && selected != null) {
+      const p = n != null && n !== selected && adj[selected].has(n) ? n : null
+      if (p !== peeked) {
+        peeked = p
+        // a dropped peek reports the selected paper — "show this one, peek-style"
+        cb.onPeek(nodes[p ?? selected].id)
+      }
+    } else {
+      peeked = null
+      selected = n
+      cb.onSelect(n != null ? nodes[n].id : null)
+    }
+  }
+
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId)
     if (e.pointerType === 'touch') {
@@ -382,7 +412,7 @@ export function createRenderer(
     }
     moved = false
     last = { x: e.offsetX, y: e.offsetY }
-    const n = mode === 'constellation' ? findNode(e.offsetX, e.offsetY) : null
+    const n = altReach(mode === 'constellation' ? findNode(e.offsetX, e.offsetY) : null, e.altKey)
     if (n != null && sim) {
       dragging = n
       nodes[n].fx = nodes[n].x
@@ -432,11 +462,16 @@ export function createRenderer(
       last = { x: e.offsetX, y: e.offsetY }
       if (Math.abs(mx) + Math.abs(my) > 1) moved = true
     } else {
-      const n = findNode(e.offsetX, e.offsetY)
-      if (n !== hovered) {
-        hovered = n
-        canvas.style.cursor = n != null ? 'pointer' : 'default'
-        cb.onHover(n != null ? nodes[n].id : null)
+      // alt/option pins the highlight to the selection, so you can travel to a
+      // neighbor without lighting up everything on the way
+      const n = altReach(findNode(e.offsetX, e.offsetY), e.altKey)
+      canvas.style.cursor = n != null ? 'pointer' : 'default'
+      const altHold = e.altKey && selected != null
+      armed = altHold && n !== selected ? n : null
+      const next = altHold ? null : n
+      if (next !== hovered) {
+        hovered = next
+        cb.onHover(next != null ? nodes[next].id : null)
       }
     }
   })
@@ -447,6 +482,13 @@ export function createRenderer(
       canvas.style.cursor = 'default'
       cb.onHover(null)
     }
+    armed = null
+  })
+
+  // the armed ring is pure alt feedback — letting go of alt while parked must
+  // drop it; the next pointermove may never come
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'Alt') armed = null
   })
 
   canvas.addEventListener('pointercancel', (e) => {
@@ -462,17 +504,10 @@ export function createRenderer(
       dragging = null
       sim?.alphaTarget(0)
       nodes[n].fx = nodes[n].fy = null
-      if (!moved) {
-        selected = n
-        cb.onSelect(nodes[n].id)
-      }
+      if (!moved) tap(n, e.altKey)
     } else if (panning) {
       panning = false
-      if (!moved) {
-        const n = findNode(e.offsetX, e.offsetY)
-        selected = n
-        cb.onSelect(n != null ? nodes[n].id : null)
-      }
+      if (!moved) tap(findNode(e.offsetX, e.offsetY), e.altKey)
     }
   })
 
@@ -496,7 +531,7 @@ export function createRenderer(
         adj[s].add(t)
         adj[t].add(s)
       }
-      hovered = selected = external = null
+      hovered = peeked = armed = selected = external = null
       sim?.stop()
       sim = forceSimulation(nodes)
         .force('link', forceLink<GraphNode, GraphLink>(edgeIdx.map(([s, t]) => ({ source: s, target: t }))).distance(45).strength(0.25))
@@ -566,6 +601,7 @@ export function createRenderer(
     },
     select(id: string | null) {
       selected = id ? (byId.get(id) ?? null) : null
+      peeked = null
     },
     setFilter(ids: Set<string> | null) {
       visible = ids

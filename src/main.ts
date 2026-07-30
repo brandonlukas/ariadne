@@ -112,6 +112,12 @@ const renderer = createRenderer($<HTMLCanvasElement>('canvas'), {
       openDetails(byId.get(id)!)
     }
   },
+  // alt-click peek: the panel previews this paper; selection and ranked list
+  // stay on the selected one (a dropped peek arrives as the selected paper)
+  onPeek(id) {
+    openDetails(byId.get(id)!, true)
+    renderer.panTo(id, -192)
+  },
 })
 
 // the panel is a history entry, so the browser's native back gesture closes it
@@ -1151,16 +1157,18 @@ function openSeedDetails(w: Work) {
   showPanel()
 }
 
-function openDetails(i: number) {
+function openDetails(i: number, peek = false) {
   if (!corpus) return
   const w = corpus.works[i]
   const m = metrics[i]
-  for (const li of rankedEl.children) li.classList.toggle('active', (li as HTMLElement).dataset.id === w.id)
-  rankedEl.querySelector<HTMLElement>(`li[data-id="${w.id}"]`)?.scrollIntoView({ block: 'nearest' })
-  renderer.select(w.id)
-  // center left of the panel at the current zoom — same-paper rebuilds
-  // (flag toggles, ai swaps) don't move the camera
-  if (panelId !== w.id) renderer.panTo(w.id, -192)
+  if (!peek) {
+    for (const li of rankedEl.children) li.classList.toggle('active', (li as HTMLElement).dataset.id === w.id)
+    rankedEl.querySelector<HTMLElement>(`li[data-id="${w.id}"]`)?.scrollIntoView({ block: 'nearest' })
+    renderer.select(w.id)
+    // center left of the panel at the current zoom — same-paper rebuilds
+    // (flag toggles, ai swaps) don't move the camera
+    if (panelId !== w.id) renderer.panTo(w.id, -192)
+  }
 
   panelBody.replaceChildren(...paperHead(w))
   if (panelId !== w.id) panelEl.scrollTop = 0 // new paper starts at the top; ai-text swaps don't jump
