@@ -187,6 +187,20 @@
     #lenses .row.lit .n, #lenses .row.lit em { color: var(--thread); }
     #lenses .row.lit .track i { background: var(--thread); }
 
+    /* the selection card: who the active lens points at — career stats are
+       global OpenAlex numbers, the thread-red line is this corpus's share */
+    #lens-card { position: relative; margin: 0 18px 8px 22px; padding: 7px 26px 8px 12px;
+      border: 1px solid var(--hairline); border-radius: 10px; font-size: 11px;
+      flex-shrink: 0; }
+    #lens-card .nm { font-size: 12.5px; }
+    #lens-card .sub { color: var(--gray); margin-top: 1px; }
+    #lens-card .sub a { color: var(--gray); }
+    #lens-card .sub a:hover { color: var(--thread); }
+    #lens-card .scope { color: var(--thread); margin-top: 3px; }
+    #lens-card .x { position: absolute; top: 3px; right: 5px; background: none; border: none;
+      color: var(--faint); font-size: 14px; padding: 2px 5px; }
+    #lens-card .x:hover { color: var(--ink); }
+
     #list-tools { display: flex; gap: 12px; align-items: center; padding: 0 18px 8px 22px; }
     #list-tools[hidden] { display: none; }
     #find { flex: 1; min-width: 0; background: var(--paper); border: 1px solid var(--hairline);
@@ -483,6 +497,7 @@
           <button data-t="venues">venues</button>
           <button data-t="authors">authors</button>
         </div>
+        <div id="lens-card" hidden></div>
         <div id="list-tools" hidden>
           <input id="find" placeholder="filter…" />
           <button id="bridges" hidden title="only papers citing several of your seeds">⋈ bridges</button>

@@ -5,7 +5,9 @@ export interface Work {
   citedBy: number
   preprint: boolean
   authors: string[]
+  authorIds: (string | null)[] // parallel to authors — OpenAlex A-ids, for the selection card
   venue: string | null
+  venueId: string | null // OpenAlex S-id
   arxivId: string | null
   refs: string[]
   recentCites: number
@@ -108,6 +110,7 @@ function parseWork(j: any): Work {
     .filter((c: any) => c.year >= thisYear - 2)
     .reduce((s: number, c: any) => s + c.cited_by_count, 0)
   const arxivId = findArxivId(j)
+  const auths = (j.authorships ?? []).filter((a: any) => a.author?.display_name)
   const w: Work = {
     id: short(j.id),
     title: deTag(j.display_name ?? '(untitled)'),
@@ -117,8 +120,10 @@ function parseWork(j: any): Work {
     // 'preprint' (Cytoscape, GATK, … are all typed preprint under Genome
     // Research); who hosts the primary copy is the signal that holds
     preprint: j.primary_location?.source?.type === 'repository',
-    authors: (j.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
+    authors: auths.map((a: any) => a.author.display_name),
+    authorIds: auths.map((a: any) => (a.author.id ? short(a.author.id) : null)),
     venue: j.primary_location?.source?.display_name ?? null,
+    venueId: j.primary_location?.source?.id ? short(j.primary_location.source.id) : null,
     arxivId,
     refs: (j.referenced_works ?? []).map(short),
     recentCites,
@@ -129,6 +134,32 @@ function parseWork(j: any): Work {
   }
   workCache.set(w.id, w)
   return w
+}
+
+export interface LensDetail {
+  works: number
+  citedBy: number
+  hIndex: number
+  note: string | null // author: last known affiliation; venue: type · publisher
+  url: string | null // author: ORCID; venue: homepage
+}
+
+// career stats behind the selection card — one call, answered from urlCache thereafter
+export async function fetchLensDetail(kind: 'author' | 'venue', id: string): Promise<LensDetail> {
+  const j =
+    kind === 'author'
+      ? await getJson(`/authors/${id}?select=works_count,cited_by_count,summary_stats,last_known_institutions,orcid`)
+      : await getJson(`/sources/${id}?select=works_count,cited_by_count,summary_stats,type,host_organization_name,homepage_url`)
+  return {
+    works: j.works_count ?? 0,
+    citedBy: j.cited_by_count ?? 0,
+    hIndex: j.summary_stats?.h_index ?? 0,
+    note:
+      kind === 'author'
+        ? (j.last_known_institutions?.[0]?.display_name ?? null)
+        : [j.type, j.host_organization_name].filter(Boolean).join(' · ') || null,
+    url: kind === 'author' ? (j.orcid ?? null) : (j.homepage_url ?? null),
+  }
 }
 
 const arxOf = (q: string) =>

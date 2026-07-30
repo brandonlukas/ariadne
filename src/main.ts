@@ -1,4 +1,4 @@
-import { autocompleteWorks, buildCorpus, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
+import { autocompleteWorks, buildCorpus, fetchLensDetail, getAlexKey, idLike, resolveSeed, searchSeeds, setAlexKey, stripDoi, type Corpus, type WeaveMode, type Work } from './api.ts'
 import { getAiOn, getKey, getModel, inferIntent, MODELS, setAiOn, setKey, setModel, whyForIntent } from './llm.ts'
 import { computeMetrics, PRESETS, type Metrics } from './metrics.ts'
 import { createRenderer, readTheme, THREAD, type GraphNode, type ViewMode } from './render.ts'
@@ -27,7 +27,7 @@ const RAMP_LIGHT = ['#a8a494', '#948f80', '#7f7b6e', '#69665b', '#53504a', '#3b3
 const RAMP_DARK = ['#5f5c52', '#716d61', '#837f71', '#969282', '#aaa697', '#c9c5b6', '#e8e6e0']
 const darkMq = matchMedia('(prefers-color-scheme: dark)')
 
-const STORE = 'ariadne:weave:v15' // bump when the cached corpus shape or harvest logic changes
+const STORE = 'ariadne:weave:v16' // bump when the cached corpus shape or harvest logic changes
 
 // IndexedDB: localStorage's ~5MB quota couldn't hold three uncapped corpora,
 // which silently dropped woven directions on refresh and forced refetches
@@ -525,6 +525,7 @@ function present() {
   $('bridges').classList.remove('on')
   setTab('papers')
   lens = null
+  renderLensCard()
   applyBrush(null)
   $('stage').classList.add('woven')
   document.querySelector<HTMLButtonElement>('#modes [data-m="constellation"]')!.click()
@@ -623,7 +624,7 @@ function updateReadout(hoverYear?: number) {
 }
 
 // brush, lens, text, and hide-flags compose: a paper must pass all to stay lit
-let lens: { kind: 'venue' | 'author'; name: string } | null = null
+let lens: { kind: 'venue' | 'author'; name: string; id: string | null; count: number } | null = null
 
 function matches(w: Work): boolean {
   if (flags[w.id] === 'hide') return false
@@ -706,9 +707,17 @@ function renderLenses() {
   lensesKey = key
   const kind = tab === 'venues' ? ('venue' as const) : ('author' as const)
   const counts = new Map<string, number>()
-  for (const w of corpus.works)
-    for (const x of kind === 'venue' ? (w.venue ? [w.venue] : []) : w.authors)
+  // OpenAlex disambiguation is imperfect: one display name can span several ids.
+  // First id seen wins — the card is informative, not authoritative.
+  const idOf = new Map<string, string>()
+  for (const w of corpus.works) {
+    const pairs: [string, string | null][] =
+      kind === 'venue' ? (w.venue ? [[w.venue, w.venueId]] : []) : w.authors.map((a, i) => [a, w.authorIds?.[i] ?? null])
+    for (const [x, xid] of pairs) {
       counts.set(x, (counts.get(x) ?? 0) + 1)
+      if (xid && !idOf.has(x)) idOf.set(x, xid)
+    }
+  }
   const entries = [...counts].sort((a, b) => b[1] - a[1])
   const max = entries[0]?.[1] ?? 1
   lensesEl.replaceChildren(
@@ -724,13 +733,58 @@ function renderLenses() {
       track.append(fill)
       row.append(nm, track, el('em', '', String(n)))
       row.onclick = () => {
-        lens = lens?.kind === kind && lens.name === name ? null : { kind, name }
+        lens = lens?.kind === kind && lens.name === name ? null : { kind, name, id: idOf.get(name) ?? null, count: n }
         applyFilter()
+        renderLensCard()
       }
       return row
     }),
   )
   applyFilter()
+}
+
+// the selection card: who the active lens points at. Name and corpus share render
+// immediately; career stats arrive from OpenAlex when they arrive — the filter
+// never waits on the network, and a failed fetch just leaves the short card.
+// A late fetch for a dropped selection lands on a detached `scope` — a no-op.
+const lensCardEl = $('lens-card')
+
+function renderLensCard() {
+  if (!lens || !corpus) {
+    lensCardEl.hidden = true
+    return
+  }
+  const L = lens
+  const x = el('button', 'x', '×')
+  x.setAttribute('aria-label', 'clear selection')
+  x.onclick = () => {
+    lens = null
+    applyFilter()
+    renderLensCard()
+  }
+  const scope = el('div', 'scope', `${L.count} of ${corpus.works.length} papers in this corpus`)
+  lensCardEl.replaceChildren(el('div', 'nm', L.name), scope, x)
+  lensCardEl.hidden = false
+  if (!L.id) return
+  fetchLensDetail(L.kind, L.id).then(
+    (d) => {
+      const sub = el('div', 'sub', d.note ?? '')
+      if (d.url) {
+        const a = el('a', '', L.kind === 'author' ? 'orcid ↗' : 'site ↗')
+        a.href = d.url
+        a.target = '_blank'
+        a.rel = 'noopener'
+        sub.append(d.note ? ' · ' : '', a)
+      }
+      const stats = el(
+        'div',
+        'sub',
+        `${d.works.toLocaleString()} works · ${d.citedBy.toLocaleString()} cites · h-index ${d.hIndex}`,
+      )
+      scope.before(...(d.note || d.url ? [sub] : []), stats)
+    },
+    () => {},
+  )
 }
 
 function setTab(t: typeof tab) {
