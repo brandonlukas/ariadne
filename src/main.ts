@@ -968,7 +968,8 @@ const PLOS_JOURNALS: Record<string, string> = {
 }
 
 // Some hosts only reveal a figure's path through their API (bioRxiv needs the
-// posting date; eLife needs the asset's revision). Both are CORS-open.
+// posting date; eLife needs the asset's revision; Elsevier needs the PII, which
+// only Crossref carries). All are CORS-open.
 const asyncFigures = new Map<string, Promise<string[]>>()
 
 function lookupFigures(doi: string): Promise<string[]> {
@@ -987,6 +988,16 @@ function lookupFigures(doi: string): Promise<string[]> {
           .reverse()
           .map((d: string) => `https://www.${server}.org/content/${server}/early/${d}/${suffix}/F1.large.jpg`),
       )
+      .catch(() => [])
+  } else if (isElsevier(doi)) {
+    // ScienceDirect keys images off the PII, not the DOI; Crossref files it as
+    // an alternative-id. Figure 1 is gr1 — fx1 is the graphical abstract.
+    p = fetch(`https://api.crossref.org/works/${doi}?mailto=brandonlukas@gmail.com`)
+      .then((r) => r.json())
+      .then((j: any) => {
+        const pii = (j.message?.['alternative-id'] ?? []).find((a: string) => /^S[0-9X]+$/i.test(a))
+        return pii ? [`https://ars.els-cdn.com/content/image/1-s2.0-${pii}-gr1.jpg`] : []
+      })
       .catch(() => [])
   } else {
     const id = doi.match(/^10\.7554\/elife\.(\d+)/i)![1]
@@ -1024,8 +1035,10 @@ function figureUrls(w: Work): string[] {
 // bioRxiv (10.1101/2021.10.04.463034) and medRxiv (10.1101/2020.05.06.20093542);
 // the same prefix also carries Cold Spring Harbor journals, whose suffixes aren't dated
 const isPreprint = (doi: string) => /^10\.1101\/\d{4}\.\d{2}\.\d{2}\./.test(doi)
+// Elsevier's whole catalogue, Cell Press included
+const isElsevier = (doi: string) => /^10\.1016\//.test(doi)
 // hosts whose figure path takes an extra API lookup
-const needsLookup = (doi: string) => isPreprint(doi) || /^10\.7554\/elife\./i.test(doi)
+const needsLookup = (doi: string) => isPreprint(doi) || isElsevier(doi) || /^10\.7554\/elife\./i.test(doi)
 
 let galleryStale = true
 
