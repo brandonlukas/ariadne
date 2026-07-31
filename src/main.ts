@@ -76,7 +76,8 @@ const ASK_DESCS: Record<Ask, string> = {
   since: 'what grew from your seeds — downstream work, by influence or newest first',
 }
 let ask: Ask = 'canon'
-let byTime = false // order toggle: groundwork reads oldest-first, since newest-first
+let orderBy: 'score' | 'old' | 'new' = 'score' // one control for all three asks
+let sizeByCites = false // node size: composite influence score, or raw citation count
 let weaveMode: WeaveMode = 'both'
 let corpora: Partial<Record<WeaveMode, Corpus>> = {} // one seed set, up to three instruments
 let bridgesOnly = false
@@ -473,11 +474,7 @@ function syncAskUI() {
   document
     .querySelectorAll<HTMLButtonElement>('#preset button[data-a]')
     .forEach((x) => x.classList.toggle('on', x.dataset.a === ask))
-  $('order-line').hidden = ask === 'canon'
-  const timeBtn = $<HTMLButtonElement>('order-time')
-  timeBtn.textContent = ask === 'groundwork' ? 'oldest first' : 'newest first'
-  timeBtn.classList.toggle('on', byTime)
-  $('order-score').classList.toggle('on', !byTime)
+  for (const k of ['score', 'old', 'new'] as const) $(`order-${k}`).classList.toggle('on', orderBy === k)
 }
 
 document.querySelector('#ask-legend .rows')!.append(
@@ -487,7 +484,7 @@ document.querySelector('#ask-legend .rows')!.append(
 document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((b) => {
   b.onclick = () => {
     ask = b.dataset.a as Ask
-    byTime = false
+    orderBy = 'score'
     const wanted = ASKS[ask].mode
     syncAskUI()
     if (wanted !== weaveMode) {
@@ -506,28 +503,19 @@ document.querySelectorAll<HTMLButtonElement>('#preset button[data-a]').forEach((
     if (!corpus) return
     metrics = computeMetrics(corpus.works, corpus.edges, PRESETS[ASKS[ask].preset], weaveMode === 'roots')
     computeOrder()
-    const labeled = new Set(order.slice(0, 14))
-    renderer.restyle(
-      new Map(
-        corpus.works.map((w, i) => [
-          w.id,
-          { r: 3.5 + metrics[i].score * 14, labeled: labeled.has(i) || w.isSeed },
-        ]),
-      ),
-    )
+    restyleNodes()
     writeHash()
     refreshViews()
   }
 })
 
-const setOrder = (time: boolean) => {
-  byTime = time
+const setOrder = (k: typeof orderBy) => {
+  orderBy = k
   syncAskUI()
   computeOrder()
   refreshViews()
 }
-$<HTMLButtonElement>('order-time').onclick = () => setOrder(true)
-$<HTMLButtonElement>('order-score').onclick = () => setOrder(false)
+for (const k of ['score', 'old', 'new'] as const) $<HTMLButtonElement>(`order-${k}`).onclick = () => setOrder(k)
 
 // --- weave ---
 
@@ -564,11 +552,11 @@ function present() {
 
 function computeOrder() {
   if (!corpus) return
-  const key = byTime
-    ? (i: number) => corpus!.works[i].year || (ask === 'groundwork' ? 9999 : 0) // yearless sink to the end
-    : (i: number) => metrics[i].score
-  order = corpus.works.map((_, i) => i).sort((a, b) => key(b) - key(a))
-  if (byTime && ask === 'groundwork') order.reverse() // ancestry reads oldest-first: the story in order
+  const key =
+    orderBy === 'score' ? (i: number) => -metrics[i].score
+    : orderBy === 'new' ? (i: number) => -(corpus!.works[i].year || 0) // yearless sink to the end
+    : (i: number) => corpus!.works[i].year || 9999
+  order = corpus.works.map((_, i) => i).sort((a, b) => key(a) - key(b))
 }
 
 // rebuild everything that depends on `order` or per-paper flags
@@ -878,6 +866,26 @@ weaveBtn.onclick = async () => {
 
 // --- graph ---
 
+// citations span 0 to ~100k in one corpus, so the cites scale is logarithmic
+function radii(): number[] {
+  if (!sizeByCites) return metrics.map((m) => 3.5 + m.score * 14)
+  const max = Math.max(1, ...corpus!.works.map((w) => w.citedBy))
+  return corpus!.works.map((w) => 3.5 + (14 * Math.log1p(w.citedBy)) / Math.log1p(max))
+}
+
+function restyleNodes() {
+  const rs = radii()
+  const labeled = new Set(order.slice(0, 14))
+  renderer.restyle(new Map(corpus!.works.map((w, i) => [w.id, { r: rs[i], labeled: labeled.has(i) || w.isSeed }])))
+}
+
+// one word that cycles: "size · influence" ⇄ "size · cites"
+$<HTMLButtonElement>('size-by').onclick = (e) => {
+  sizeByCites = !sizeByCites
+  ;(e.target as HTMLElement).textContent = sizeByCites ? 'cites' : 'influence'
+  if (corpus) restyleNodes()
+}
+
 function yearColor(year: number, min: number, max: number): string {
   const ramp = darkMq.matches ? RAMP_DARK : RAMP_LIGHT
   const t = max > min ? (year - min) / (max - min) : 0.5
@@ -897,12 +905,11 @@ function renderGraph() {
   const minY = Math.min(...years)
   const maxY = Math.max(...years)
   yearSpan = [minY, maxY]
-  $('year-min').textContent = String(minY)
-  $('year-max').textContent = String(maxY)
   const labeled = new Set(order.slice(0, 14))
+  const rs = radii()
   const nodes: GraphNode[] = works.map((w, i) => ({
     id: w.id,
-    r: 3.5 + metrics[i].score * 14,
+    r: rs[i],
     color: w.isSeed ? THREAD : yearColor(w.year, minY, maxY),
     label: w.title.length > 34 ? w.title.slice(0, 32) + '…' : w.title,
     isSeed: w.isSeed,
@@ -1045,7 +1052,7 @@ let galleryStale = true
 function renderGallery() {
   if (!corpus) return
   const rankOf = new Map(order.map((idx, r) => [idx, r + 1]))
-  // influence order; CSS reflows figureless cards to the end as they resolve
+  // cards that resolve to no-figure vanish via CSS, in whatever order is active
   $('gallery').replaceChildren(
     ...order.map((i) => {
       const w = corpus!.works[i]

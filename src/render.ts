@@ -188,9 +188,21 @@ export function createRenderer(
     timeMaxOff = 0
     for (const [year, members] of cols) {
       members.sort((a, b) => nodes[b].r - nodes[a].r)
+      // spacing follows the radii — a fixed step let big circles swallow neighbors
+      let up = 0
+      let down = 0
       members.forEach((i, k) => {
-        const off = Math.ceil(k / 2) * 26 * (k % 2 ? 1 : -1)
-        timeMaxOff = Math.max(timeMaxOff, Math.abs(off))
+        const r = nodes[i].r
+        let off = 0
+        if (k === 0) up = down = r
+        else if (k % 2) {
+          off = down + 10 + r
+          down = off + r
+        } else {
+          off = -(up + 10 + r)
+          up = -off + r
+        }
+        timeMaxOff = Math.max(timeMaxOff, Math.abs(off) + r)
         timePos[i] = [((year - minY) / span) * TW - TW / 2, off]
       })
     }
@@ -200,8 +212,9 @@ export function createRenderer(
     const pad = 90
     if (m === 'circle') return Math.min(w, h) / (2 * maxRingR + 2 * pad)
     if (m === 'sphere') return Math.min(w, h) / (2 * SR + 2 * pad)
+    // height fit leaves room for the year labels hanging under the columns
     if (m === 'timeline')
-      return Math.min(w / (TW + 2 * pad), h / (2 * timeMaxOff + 2 * pad))
+      return Math.min(w / (TW + 2 * pad), (h / 2 - 30) / (timeMaxOff + 60))
     return 1
   }
 

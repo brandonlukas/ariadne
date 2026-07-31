@@ -248,7 +248,6 @@
     #ask-legend b { font-weight: 600; color: var(--ink); }
     #order-line { margin-top: 6px; padding-left: 4px; color: var(--faint);
       display: flex; gap: 10px; align-items: baseline; }
-    #order-line[hidden] { display: none; }
     #order-line button { background: none; border: none; padding: 0; font-size: 11px;
       color: var(--faint); }
     #order-line button.on { color: var(--thread); }
@@ -289,14 +288,14 @@
     #modes button.on { color: var(--ink); }
     #modes button:hover { color: var(--gray); }
 
-    #years { position: absolute; left: 20px; bottom: 46px; display: none;
+    #years { position: absolute; left: 20px; bottom: 28px; display: none;
       align-items: flex-end; gap: 1px; cursor: crosshair; touch-action: none; }
     #years div { width: 4px; border-radius: 1px; }
     #years div.seed-year { box-shadow: 0 3px 0 var(--thread); } /* seeds live here */
-    #year-ticks { position: absolute; left: 20px; bottom: 34px; height: 10px; display: none;
+    #year-ticks { position: absolute; left: 20px; bottom: 16px; height: 10px; display: none;
       font-size: 9px; color: var(--faint); font-variant-numeric: tabular-nums; }
     #year-ticks span { position: absolute; top: 0; transform: translateX(-50%); }
-    #brush-readout { position: absolute; left: 20px; bottom: 88px; display: flex;
+    #brush-readout { position: absolute; left: 20px; bottom: 70px; display: flex;
       align-items: center; gap: 8px; font-size: 11px; color: var(--ink);
       border: 1px solid var(--hairline); border-radius: 999px; padding: 3px 10px;
       background: var(--paper); }
@@ -304,12 +303,13 @@
     #brush-readout b { font-weight: 400; color: var(--thread); font-variant-numeric: tabular-nums; }
     #brush-readout .x { color: var(--faint); cursor: pointer; }
     #brush-readout .x:hover { color: var(--ink); }
-    #legend { position: absolute; left: 20px; bottom: 16px; font-size: 11px; color: var(--gray);
+    /* under the mode row — layout and size-encoding are both display controls */
+    #legend { position: absolute; left: 20px; top: 42px; font-size: 11px; color: var(--gray);
       display: none; align-items: center; gap: 8px; pointer-events: none; }
-    #legend .ramp { width: 84px; height: 6px; border-radius: 3px;
-      background: linear-gradient(to right, #a8a494, #69665b, #1c1b18); }
-    #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-      background: var(--thread); margin: 0 3px 0 10px; }
+    #legend button { pointer-events: auto; background: none; border: none; padding: 0;
+      font-size: 11px; color: var(--gray); cursor: pointer;
+      border-bottom: 1px dotted var(--faint); }
+    #legend button:hover { color: var(--ink); }
 
     #toolbar { position: absolute; right: 16px; top: 14px; display: none; gap: 8px; }
     .pill { border: 1px solid var(--hairline); background: var(--paper); border-radius: 999px;
@@ -358,7 +358,7 @@
     .card .v { font-size: 10px; color: var(--faint); overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     .card.ghost { opacity: 0.25; }
-    .card.nofig { order: 1; } /* figureless papers settle at the end of the wall */
+    .card.nofig { display: none; } /* the wall shows figures; the list has every paper */
     #stage.woven #modes, #stage.woven #legend, #stage.woven #toolbar, #stage.woven #years { display: flex; }
     #stage.woven #year-ticks { display: block; }
     #stage.gallery #years, #stage.gallery #year-ticks, #stage.gallery #legend,
@@ -418,6 +418,7 @@
       #main.m-graph #sidebar { flex-basis: 0; overflow: hidden; }
       #stage { flex: 1; min-height: 0; }
       #modes { top: 10px; }
+      #legend { top: 36px; }
       /* collapsed graph shows nothing — all chrome hides with it */
       #main.m-list #stage.woven #years, #main.m-list #stage.woven #year-ticks,
       #main.m-list #stage.woven #toolbar, #main.m-list #stage.woven #legend,
@@ -445,7 +446,6 @@
         --warn: #d99a4a;
       }
       #weave:hover:not(:disabled) { background: #e8607a; }
-      #legend .ramp { background: linear-gradient(to right, #5f5c52, #a5a192, #e8e6e0); }
       #panel .desc { color: #c8c5bc; }
     }
   </style>
@@ -522,10 +522,11 @@
             <button data-a="since">since</button>
           </div><button id="ask-help" popovertarget="ask-legend" aria-label="explain the asks">?</button>
           <div id="ask-legend" popover><div class="rows"><span class="lead">the asks</span></div></div>
-          <div id="order-line" hidden>
+          <div id="order-line">
             <span>order ·</span>
             <button id="order-score" class="on" title="ranked by load-bearing score">influence</button>
-            <button id="order-time">oldest first</button>
+            <button id="order-old">oldest</button>
+            <button id="order-new">newest</button>
           </div>
         </div>
         <ol id="ranked"></ol>
@@ -556,9 +557,8 @@
         <div id="year-ticks"></div>
         <div id="brush-readout" hidden></div>
         <div id="legend">
-          <span id="year-min"></span><span class="ramp"></span><span id="year-max"></span>
-          <span class="dot"></span><span>seed</span>
-          <span style="margin-left:10px">size — influence</span>
+          <span>size ·</span>
+          <button id="size-by" title="size circles by influence or citations">influence</button>
         </div>
         <div id="toolbar">
           <button class="pill" id="copy-link">copy link</button>
