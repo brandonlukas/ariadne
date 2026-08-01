@@ -838,6 +838,55 @@ $('div-up').onclick = () =>
 $('div-down').onclick = () =>
   setSplit($('main').classList.contains('m-graph') ? 'split' : 'list')
 
+// the grip promises a drag — honor it. The seed panel's height rides the
+// pointer as a fractional grid row, then the release snaps to open or folded
+$('fold').onpointerdown = (e) => {
+  if ((e.target as HTMLElement).closest('button')) return // chevrons keep their taps
+  const el = e.currentTarget as HTMLElement
+  el.setPointerCapture(e.pointerId)
+  const area = $('seed-area')
+  const natural = (area.firstElementChild as HTMLElement).scrollHeight
+  let fr = $('sidebar').classList.contains('folded') ? 0 : 1
+  area.style.transition = 'none'
+  area.style.gridTemplateRows = `${fr}fr`
+  setFold(false) // the drag works on live content; the release picks the state
+  el.onpointermove = (ev) => {
+    fr = Math.min(1, Math.max(0, fr + (ev.clientY - e.clientY) / natural))
+    e = ev
+    area.style.gridTemplateRows = `${fr}fr`
+  }
+  el.onpointerup = el.onpointercancel = () => {
+    el.onpointermove = null
+    area.style.transition = ''
+    area.style.gridTemplateRows = '' // the class's row takes over — animated from here
+    setFold(fr < 0.5)
+  }
+}
+
+// #divider follows the finger live, then snaps to the nearest of its states
+$('divider').onpointerdown = (e) => {
+  if ((e.target as HTMLElement).closest('button')) return
+  const el = e.currentTarget as HTMLElement
+  el.setPointerCapture(e.pointerId)
+  const top = $('main').getBoundingClientRect().top
+  const room = $('main').clientHeight - 26 // the handle keeps its strip
+  const sidebar = $('sidebar')
+  sidebar.style.transition = 'none'
+  let moved = false
+  el.onpointermove = (ev) => {
+    moved = true
+    sidebar.style.flexBasis = `${Math.min(room, Math.max(0, ev.clientY - top))}px`
+  }
+  el.onpointerup = el.onpointercancel = (ev) => {
+    el.onpointermove = null
+    sidebar.style.transition = ''
+    sidebar.style.flexBasis = '' // the class's basis takes over — animated from here
+    if (!moved) return
+    const t = (ev.clientY - top) / room
+    setSplit(t < 0.25 ? 'graph' : t > 0.75 ? 'list' : 'split')
+  }
+}
+
 weaveBtn.onclick = async () => {
   weaveBtn.disabled = true
   hidePanel()

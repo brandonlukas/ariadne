@@ -47,6 +47,7 @@
     /* divider handles: #fold collapses the seed panel inside the sidebar,
        #divider (phones only) snaps the stack between list / split / graph */
     .divider { display: flex; align-items: center; justify-content: center; gap: 16px;
+      touch-action: none; cursor: grab;
       flex-shrink: 0; height: 26px; background: var(--hover);
       border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
     .divider[hidden] { display: none; }
@@ -64,12 +65,18 @@
     #sidebar { width: 316px; flex-shrink: 0; display: flex; flex-direction: column;
       border-right: 1px solid var(--hairline); overflow-y: auto; }
     /* #sidebar.folded: the seed-entry block and setup rows give the sidebar to the
-       ranked list; the #fold divider drives it. #status stays visible — reweave
-       errors must surface even while folded */
+       ranked list; the #fold divider drives it (tap or drag — the 0fr grid row is
+       what lets the collapse glide). #status stays visible — reweave errors must
+       surface even while folded */
+    #seed-area { display: grid; grid-template-rows: 1fr; flex-shrink: 0;
+      transition: grid-template-rows 0.32s cubic-bezier(.2,.7,.2,1); }
+    #seed-area > div { overflow: hidden; min-height: 0; }
+    #sidebar.folded #seed-area { grid-template-rows: 0fr; }
+    /* collapsed content leaves the tab order; the delay holds until the glide ends */
+    #sidebar.folded #seed-area > div { visibility: hidden; transition: visibility 0s 0.32s; }
     #seed-box { flex-shrink: 0; }
     #seed-sum { padding: 12px 18px 0 22px; font-size: 11px; color: var(--faint);
       text-transform: uppercase; letter-spacing: 0.08em; }
-    #sidebar.folded #seed-box, #sidebar.folded #ai,
     #sidebar.folded #intent-line { display: none; }
     #weave { display: block; width: calc(100% - 40px); }
     #seed-form { display: flex; gap: 8px; padding: 12px 18px 0 22px; }
@@ -371,7 +378,7 @@
       transform: translateX(102%); transition: transform 0.28s cubic-bezier(.2,.7,.2,1); }
     #panel.open { transform: none; box-shadow: -24px 0 48px rgba(27,26,23,0.05); }
     @media (prefers-reduced-motion: reduce) { #panel { transition: none; }
-      #sidebar { transition: none; } #ranked { scroll-behavior: auto; } }
+      #sidebar, #seed-area { transition: none; } #ranked { scroll-behavior: auto; } }
     #back { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--hairline);
       background: var(--paper); color: var(--ink);
       margin-bottom: 18px; display: flex; align-items: center; justify-content: center; }
@@ -463,6 +470,7 @@
     </nav>
     <div id="main">
       <aside id="sidebar">
+        <div id="seed-area"><div>
         <div id="ai">
           <div id="ai-head">
             <button id="ai-power" title="toggle the assistant"><span class="dot"></span><span id="ai-status">ai off</span></button>
@@ -494,6 +502,7 @@
           <ul id="seed-chips"></ul>
           <button id="weave" disabled>weave the graph</button>
         </div>
+        </div></div>
         <div id="status"></div>
         <div id="intent-line" hidden></div>
         <div id="fold" class="divider" hidden>
