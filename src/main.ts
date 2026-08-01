@@ -1163,6 +1163,12 @@ function linkPills(w: Work) {
     pdf.title = 'open-access copy'
     pills.append(pdf)
   }
+  const scholar = el('a', 'pill', 'scholar ↗')
+  const surname = w.authors[0]?.split(' ').pop()
+  scholar.href = `https://scholar.google.com/scholar?q=${encodeURIComponent(`"${w.title}"${surname ? ` author:${surname}` : ''}`)}`
+  scholar.target = '_blank'
+  scholar.title = 'find PDFs and citations on Google Scholar'
+  pills.append(scholar)
   return pills
 }
 
