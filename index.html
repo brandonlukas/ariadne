@@ -47,11 +47,9 @@
     /* divider handles: #fold collapses the seed panel inside the sidebar,
        #divider (phones only) snaps the stack between list / split / graph */
     .divider { display: flex; align-items: center; justify-content: center; gap: 16px;
-      touch-action: none; cursor: grab;
       flex-shrink: 0; height: 26px; background: var(--hover);
       border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
     .divider[hidden] { display: none; }
-    .divider .grip { width: 28px; height: 3px; border-radius: 2px; background: var(--faint); }
     .divider button { background: none; border: none; padding: 0 22px; height: 100%;
       color: var(--gray); display: flex; align-items: center; }
     .divider button svg { width: 12px; height: 6px; fill: none; stroke: currentColor;
@@ -63,10 +61,11 @@
     /* short windows: the seed list gives up height first (it scrolls itself),
        the ranked list keeps a floor, and the column scrolls if even that fails */
     #sidebar { width: 316px; flex-shrink: 0; display: flex; flex-direction: column;
-      border-right: 1px solid var(--hairline); overflow-y: auto; }
+      border-right: 1px solid var(--hairline); overflow-y: auto;
+      overflow-anchor: none; /* Chrome's scroll anchoring fights the fold animation */ }
     /* #sidebar.folded: the seed-entry block and setup rows give the sidebar to the
-       ranked list; the #fold divider drives it (tap or drag — the 0fr grid row is
-       what lets the collapse glide). #status stays visible — reweave errors must
+       ranked list; the #fold divider drives it (the 0fr grid row is what lets the
+       collapse glide). #status stays visible — reweave errors must
        surface even while folded */
     #seed-area { display: grid; grid-template-rows: 1fr; flex-shrink: 0;
       transition: grid-template-rows 0.32s cubic-bezier(.2,.7,.2,1); }
@@ -509,7 +508,6 @@
           <button id="fold-up" aria-label="hide the seed panel">
             <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 5 6 1 11 5" /></svg>
           </button>
-          <span class="grip"></span>
           <button id="fold-down" aria-label="show the seed panel" disabled>
             <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 1 6 5 11 1" /></svg>
           </button>
@@ -545,7 +543,6 @@
         <button id="div-up" aria-label="give the screen to the graph">
           <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 5 6 1 11 5" /></svg>
         </button>
-        <span class="grip"></span>
         <button id="div-down" aria-label="give the screen to the list">
           <svg viewBox="0 0 12 6" aria-hidden="true"><polyline points="1 1 6 5 11 1" /></svg>
         </button>
