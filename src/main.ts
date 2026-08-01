@@ -1164,8 +1164,8 @@ function linkPills(w: Work) {
     pills.append(pdf)
   }
   const scholar = el('a', 'pill', 'scholar ↗')
-  const surname = w.authors[0]?.split(' ').pop()
-  scholar.href = `https://scholar.google.com/scholar?q=${encodeURIComponent(`"${w.title}"${surname ? ` author:${surname}` : ''}`)}`
+  // no author: filter — diacritics in surnames (Jakubův) break Scholar's matching
+  scholar.href = `https://scholar.google.com/scholar?q=${encodeURIComponent(`"${w.title}"`)}`
   scholar.target = '_blank'
   scholar.title = 'find PDFs and citations on Google Scholar'
   pills.append(scholar)
